@@ -15,6 +15,7 @@ from dipy.reconst.maskedview import MaskedView
 import nibabel as nib
 from dipy.io.bvectxt import read_bvec_file
 from dipy.data import get_data
+import dipy.core.gradients as grad
 
 def test_tensor_scalar_attributes():
     """
@@ -95,7 +96,7 @@ def test_WLS_and_LS_fit():
     tensor_est = dti.Tensor(Y,bval,gtab.T,min_signal=1e-8)
     assert_equal(tensor_est.shape, Y.shape[:-1])
     assert_array_almost_equal(tensor_est.evals[0], evals)
-    assert_array_almost_equal(tensor_est.D[0], tensor,err_msg= "Calculation of tensor from Y does not compare to analytical solution")
+    assert_array_almost_equal(tensor_est.D, tensor, err_msg= "Calculation of tensor from Y does not compare to analytical solution")
     assert_almost_equal(tensor_est.md()[0], md)
 
     #test 0d tensor
@@ -223,3 +224,55 @@ def test_from_lower_triangular():
     D = D * np.ones((5, 4, 1))
     tensor = from_lower_triangular(D)
     assert_array_equal(tensor, result)
+
+def test_TensorModel():
+    """
+    Test the TensorModel API
+    """
+    b0 = 1000.
+    bvecs, bvals = read_bvec_file(get_data('55dir_grad.bvec'))
+    B = bvals[1]  # The first bval is 0, so we take the second one
+
+    #Scale the eigenvalues and tensor by the B value so the units match
+    D = np.array([1., 1., 1., 0., 0., 1., -np.log(b0) * B]) / B
+    evals = np.array([2., 1., 0.]) / B
+    md = evals.mean()
+    tensor = from_lower_triangular(D)
+
+    evecs = np.linalg.eigh(tensor)[1]
+    #Design Matrix
+    X = dti.design_matrix(bvecs, bvals)
+    #Signals
+    Y = np.exp(np.dot(X,D))
+    assert_almost_equal(Y[0], b0)
+    Y.shape = (-1,) + Y.shape
+
+
+    ### Testing WLS Fit on Single Voxel ###
+    #Estimate tensor from test signals
+    for fit_method in ['OLS', 'WLS']:
+         print fit_method
+         tensor_model = dti.TensorModel(bvals, bvecs.T, fit_method=fit_method)
+         fit_it = tensor_model.fit(Y)
+         assert_equal(fit_it.model_params[0].shape, (12,)) # Always a dozen
+                                                           # params
+                                                           # for evecs + evals
+         assert_array_almost_equal(fit_it.evals, evals)
+
+         # Check the quadratic form
+         assert_array_almost_equal(fit_it.quadratic_form,
+                                   tensor,
+                                   err_msg="Calculation of tensor fit" +
+                                           "from Y does not compare to " +
+                                           "analytical solution")
+
+         assert_almost_equal(fit_it.md(), md)
+         #assert_array_almost_equal(fit_it.directions, evecs[0])
+
+    # Test error handling:
+    assert_raises(ValueError,
+          dti.TensorModel,
+          bvals,
+          bvecs.T,
+          fit_method='crazy_method'
+          )

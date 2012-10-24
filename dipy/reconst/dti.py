@@ -11,9 +11,9 @@ from dipy.data import get_sphere
 
 class TensorModel(object):
     """
-
+    DTI Model object
     """
-    def __init__(self, bval, bvec, fit_method="WLS", *args, **kwargs):
+    def __init__(self, bval, bvec, fit_method="WLS"):
         """
 
         """
@@ -30,8 +30,16 @@ class TensorModel(object):
         self.design_matrix = design_matrix(bvec.T, bval)
 
 
-    def fit(self, data):
+    def fit(self, data, *args, **kargs):
         """
+        Fit the DTI model to input data
+
+        Parameters
+        ----------
+
+        data : 1-d array
+            The data from a single voxel
+
         """
         dti_params = self.fit_method(self.design_matrix, data, *args, **kargs)
         return TensorFit(self, dti_params)
@@ -129,9 +137,9 @@ class TensorFit(object):
     @property
     def directions(self):
         """
-        For tracking - return the PDD in each voxel
+        For tracking - return the tensor primary diffusion direction:
         """
-        return self.evecs[..., np.newaxis, :, 0]
+        return self.evecs[0]
 
 
     @property
@@ -139,7 +147,7 @@ class TensorFit(object):
         """
         Returns the eigenvalues of the tensor as an array
         """
-        return _filled(self.model_params[..., :3])
+        return self.model_params[0][:3]
 
     @property
     def evecs(self):
@@ -147,13 +155,16 @@ class TensorFit(object):
         Returns the eigenvectors of teh tensor as an array
 
         """
-        evecs = _filled(self.model_params[..., 3:])
-        return evecs.reshape(self.shape + (3, 3))
+        return self.model_params[0][3:].reshape((3,3))
 
     ### Self Diffusion Tensor Property ###
     @property
     def quadratic_form(self):
         """Calculates the 3x3 diffusion tensor for each voxel"""
+        #  XXX Note that the following assumes a multi-voxel case. We will keep
+        # it this way for now, so that we can use the same code below in the
+        # backwards compatible Tensor class, but this code should be simplified
+        # when we deprecate that class
         params, wrap = _makearray(self.model_params)
         evals = params[..., :3]
         evecs = params[..., 3:]
@@ -165,11 +176,13 @@ class TensorFit(object):
             L = evals_flat[ii]
             D_flat[ii] = np.dot(Q*L, Q.T)
         D = _filled(wrap(D_flat))
-        D.shape = self.shape + (3, 3)
+        D.shape = (3, 3)
         return D
+
 
     def lower_triangular(self, b0=None):
         return lower_triangular(self.quadratic_form, b0)
+
 
     def fa(self, fill_value=0, nonans=True):
         r"""
@@ -673,6 +686,7 @@ def stepper_from_tensor(tensor, *args, **kargs):
 
 common_fit_methods = {'WLS': wls_fit_tensor,
                       'LS': ols_fit_tensor,
+                      'OLS': ols_fit_tensor,
                       'from lower triangular': tensor_eig_from_lo_tri,
                      }
 
@@ -744,3 +758,19 @@ class Tensor(TensorFit, ModelArray):
 
         """
         return quantize_evecs(self.evecs, odf_vertices=None)
+
+    @property
+    def evals(self):
+        """
+        Returns the eigenvalues of the tensor as an array
+        """
+        return _filled(self.model_params[..., :3])
+
+    @property
+    def evecs(self):
+        """
+        Returns the eigenvectors of teh tensor as an array
+
+        """
+        evecs = _filled(self.model_params[..., 3:])
+        return evecs.reshape(self.shape + (3, 3))
