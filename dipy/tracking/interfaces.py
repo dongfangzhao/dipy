@@ -88,7 +88,7 @@ class InputData(T.HasTraits):
         data = data_img.get_data()
         return data, voxel_size, affine, fa, bvec, bval
 
-class GausianKernel(T.HasTraits):
+class GaussianKernel(T.HasTraits):
     sigma = T.Float(1, label='sigma (in voxels)')
     shape = T.Array('int', shape=(3,), value=[1,1,1],
                     label='shape (in voxels)')
@@ -134,7 +134,7 @@ def closest_start(seeds, peak_finder, best_start):
             starts[i] = best_start
     return starts
 
-all_kernels = {None:None,'Box':BoxKernel,'Gausian':GausianKernel}
+all_kernels = {None:None,'Box':BoxKernel,'Gaussian':GaussianKernel}
 all_interpolators = {'NearestNeighbor':NearestNeighborInterpolator,
                      'TriLinear':TriLinearInterpolator}
 all_shmodels = {'QballOdf':QballOdfModel, 'SlowAdcOpdf':SlowAdcOpdfModel,
