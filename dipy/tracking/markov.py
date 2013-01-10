@@ -280,8 +280,10 @@ class ProbabilisticOdfWeightedTracker(MarkovIntegrator):
                  seeds, sphere, max_cross=None, maxlen=500,
                  mask_voxel_size=None):
 
-        MarkovIntegrator.__init__(self, model, interpolator, take_step,
-                                  angle_limit=angle_limit, mask=mask)
+        MarkovIntegrator.__init__(self, model, interpolator, mask, take_step,
+                                  angle_limit, seeds, max_cross=max_cross,
+                                  maxlen=maxlen, mask_voxel_size=mask_voxel_size)
+
         self.sphere = sphere
         self._set_adjacency_matrix(sphere, self._cos_similarity)
         model.direction_finder.config(sphere=sphere)
