@@ -49,48 +49,24 @@ def fractional_anisotropy(evals, axis=-1):
 
     return fa
 
+def calculate_tensor_mode(array):
+    aniso = array - 1.0/3 * np.trace(array) * np.eye(np.shape(array)[0])
+    mode = 3 * np.sqrt(6) * np.linalg.det(aniso / np.linalg.norm(aniso))
+    return mode
 
-def mean_diffusivity(evals, axis=-1):
+def calculate_mode(evals, D, axis=-1):
     r"""
-    Mean Diffusivity (MD) of a diffusion tensor. Also, called
-    Apparent diffusion coefficient (ADC)
-
-    Parameters
-    ----------
-    evals : array-like
-        Eigenvalues of a diffusion tensor.
-    axis : int
-        Axis of `evals` which contains 3 eigenvalues.
-
-    Returns
-    -------
-    md : array
-        Calculated MD. 
-
-    Notes
-    --------
-    MD is calculated with the following equation:
-
-    .. math::
-
-        MD = \frac{\lambda_1 + \lambda_2 + \lambda_3}{3}
-
-    """
-    evals = np.rollaxis(evals, axis)
-    if evals.shape[0] != 3:
-        msg = "Expecting 3 eigenvalues, got {}".format(evals.shape[0])
-        raise ValueError(msg)
-
-    ev1, ev2, ev3 = evals
-    return (ev1 + ev2 + ev3) / 3
-
-
-
-def axial_diffusivity(evals, axis=-1):
-    r"""
-    Axial Diffusivity (AD) of a diffusion tensor.
-    Also called parallel diffusivity. 
+    Mode (MO) of a diffusion tensor.
     
+    See:
+
+    http://lmi.bwh.harvard.edu/papers/papers/ennisMRM06.html
+
+    Daniel B. Ennis, G. Kindlmann 
+    Magnetic Resonance in Medicine 
+    Volume 55, Number 1, Pages 136-146
+    2006 
+
     Parameters
     ----------
     evals : array-like
@@ -100,130 +76,29 @@ def axial_diffusivity(evals, axis=-1):
 
     Returns
     -------
-    ad : array
-        Calculated AD. 
+
+    mode : array
+        Calculated Mode. Note: range is -1 <= Mode <= 1.
 
     Notes
     --------
-    AD is calculated with the following equation:
+    Mode is calculated with the following equation:
 
     .. math::
 
-        AD = \lambda_1
-
+        Mode = 3*\sqrt{6}*det((Asq)/norm(Asq))
     """
-    evals = np.rollaxis(evals, axis)
-    if evals.shape[0] != 3:
-        msg = "Expecting 3 eigenvalues, got {}".format(evals.shape[0])
-        raise ValueError(msg)
 
-    ev1, ev2, ev3 = evals
-    return ev1
-
-
-def radial_diffusivity(evals, axis=-1):
-    r"""
-    Radial Diffusivity (RD) of a diffusion tensor.
-    Also called perpendicular diffusivity.
+    dimx = D.shape[0]
+    dimy = D.shape[1]
+    dimz = D.shape[2]
+    tensor_mode = np.zeros((dimx, dimy, dimz))
+    for x in xrange(dimx):
+        for y in xrange(dimy):
+            for z in xrange(dimz):
+                tensor_mode[x, y, z] = calculate_tensor_mode(D[x,y,z])
+    return tensor_mode
     
-    Parameters
-    ----------
-    evals : array-like
-        Eigenvalues of a diffusion tensor.
-    axis : int
-        Axis of `evals` which contains 3 eigenvalues.
-
-        Returns
-    -------
-    rd : array
-        Calculated RD. 
-
-    Notes
-    --------
-    RD is calculated with the following equation:
-
-    .. math::
-
-        RD = \frac{\lambda_2 + \lambda_3}{2}
-
-    """
-    evals = np.rollaxis(evals, axis)
-    if evals.shape[0] != 3:
-        msg = "Expecting 3 eigenvalues, got {}".format(evals.shape[0])
-        raise ValueError(msg)
-
-    ev1, ev2, ev3 = evals
-    return (ev2 + ev3) / 2
-
-
-def trace(evals, axis=-1):
-    r"""
-    Trace of a diffusion tensor.
-
-    Parameters
-    ----------
-    evals : array-like
-        Eigenvalues of a diffusion tensor.
-    axis : int
-        Axis of `evals` which contains 3 eigenvalues.
-
-    Returns
-    -------
-    trace : array
-        Calculated trace of the diffusion tensor. 
-
-    Notes
-    --------
-    Trace is calculated with the following equation:
-
-    .. math::
-
-        MD = \lambda_1 + \lambda_2 + \lambda_3
-
-    """
-    evals = np.rollaxis(evals, axis)
-    if evals.shape[0] != 3:
-        msg = "Expecting 3 eigenvalues, got {}".format(evals.shape[0])
-        raise ValueError(msg)
-
-    ev1, ev2, ev3 = evals
-    return (ev1 + ev2 + ev3)
-
-
-def color_fa(fa, evecs):
-    r""" Color fractional anisotropy of diffusion tensor
-
-    Parameters
-    ----------
-    fa : array-like
-        Array of the fractional anisotropy (can be 1D, 2D or 3D)
-
-    evecs : array-like
-        eigen vectors from the tensor model
-
-    Returns
-    -------
-    rgb : Array with 3 channels for each color as the last dimension.
-        Colormap of the FA with red for the x value, y for the green
-        value and z for the blue value.
-
-    Notes
-    -----
-
-    it is computed from the clipped FA between 0 and 1 using the following
-    formula
-
-    .. math::
-
-        rgb = abs(max(eigen_vector)) \times fa
-    """
-    if (fa.shape != evecs[..., 0, 0].shape) or ((3, 3) != evecs.shape[-2:]):
-        raise ValueError("Wrong number of dimensions for evecs")
-
-    fa = np.clip(fa, 0, 1)
-    rgb = np.abs(evecs[..., 0]) * fa[..., None]
-    return rgb
-
 
 class TensorModel(object):
     """ Diffusion Tensor
@@ -369,6 +244,11 @@ class TensorFit(object):
         """Fractional anisotropy (FA) calculated from cached eigenvalues."""
         return fractional_anisotropy(self.evals)
 
+
+    @auto_attr
+    def mode(self):
+        """Mode (MO) calculated from cached eigenvalues."""
+        return calculate_mode(self.evals, self.D)
 
     @auto_attr
     def md(self):
