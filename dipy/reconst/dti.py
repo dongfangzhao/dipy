@@ -457,6 +457,25 @@ class TensorFit(object):
         return trace(self.evals)
 
     def odf(self, sphere):
+        """
+        Compute the diffusion ODF on the surface of a provided sphere
+
+        Parameters
+        ----------
+        sphere : `dipy.core.sphere.Sphere` class instance
+
+        Returns
+        -------
+        odf : ndarray with shape (x,y,z, n_vertices), where `n_vertices` refers
+        to the number of vertices in the input sphere. This is the value of the
+        diffusion ODF in that direction in the spherical coordinate system in
+        that voxel. 
+        
+        Note
+        ----
+        This is used to determine the direction in tracking on this model fit 
+        
+        """
         lower = 4 * np.pi * np.sqrt(np.prod(self.evals, -1))
         projection = np.dot(sphere.vertices, self.evecs)
         with warnings.catch_warnings():

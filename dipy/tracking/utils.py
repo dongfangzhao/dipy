@@ -350,10 +350,10 @@ def subsegment(streamlines, max_segment_length):
 def seeds_from_mask(mask, density, voxel_size=(1,1,1)):
     """Takes a binary mask and returns seeds in voxels != 0
 
-    places evanly spaced points in nonzero voxels of mask, spaces the points
-    based on density. For example if density is [1, 2, 3], there will be 6
-    points in each voxel, at x=.5, y=[.25, .75] and z=[.166, .5, .833].
-    density=a is the same as density = [a, a, a]
+    places evenly spaced points in nonzero voxels of mask. The points
+    are space based on `density`. For example if `density` is [1, 2, 3], there
+    will be 6  points in each voxel, at x=.5, y=[.25, .75] and z=[.166, .5,
+    .833]. density=a is the same as density = [a, a, a]
 
     Examples
     --------
