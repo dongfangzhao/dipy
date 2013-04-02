@@ -125,6 +125,10 @@ def test_tensor_scalar_attributes():
     RD = 0.5
     AD = 2.0
     trace = 3
+<<<<<<< HEAD
+=======
+    mode = 0
+>>>>>>> Updated Tensor Mode calculation for n-dimensional array
 
     ### CALCULATE ESTIMATE VALUES ###
     dummy_data = np.ones((1,10)) #single voxel
@@ -143,6 +147,7 @@ def test_tensor_scalar_attributes():
     assert_almost_equal(AD, tensor.ad, msg = "Calculation of AD of self diffusion tensor is not adequate")
     assert_almost_equal(RD, tensor.rd, msg = "Calculation of RD of self diffusion tensor is not adequate")
     assert_almost_equal(trace, tensor.trace, msg = "Calculation of trace of self diffusion tensor is not adequate")
+    assert_almost_equal(mode, tensor.mode, msg = "Calculation of mode of self diffusion tensor is not adequate")
 
     assert_equal(True, tensor.mask.all())
 
