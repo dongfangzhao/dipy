@@ -207,7 +207,7 @@ original, uncorrupted data:
 
    **Tensor Ellipsoids from noisy data recovered with RESTORE**.
 
-The tensor ODF field looks like it was restored to its noiseless state in this
+The tensor field looks like it was restored to its noiseless state in this
 image, but to convince ourselves further that this did the right thing, we will
 compare  the distribution of FA in this region relative to the baseline, using
 the RESTORE estimate and the WLS estimate.
