@@ -214,9 +214,9 @@ the RESTORE estimate and the WLS estimate.
 """
 
 fig_hist, ax = plt.subplots(1)
-ax.hist(np.ravel(fa1), color='g', histtype='step', label='Original')
-ax.hist(np.ravel(fa2), color='b', histtype='step', label='WLS')
-ax.hist(np.ravel(fa3), color='r', histtype='step', label='RESTORE')
+ax.hist(np.ravel(fa1), color='b', histtype='step', label='Original')
+ax.hist(np.ravel(fa2), color='r', histtype='step', label='WLS')
+ax.hist(np.ravel(fa3), color='g', histtype='step', label='RESTORE')
 ax.set_xlabel('Fractional Anisotropy')
 ax.set_ylabel('Count')
 plt.legend()
