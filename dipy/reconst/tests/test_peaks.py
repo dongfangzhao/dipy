@@ -6,7 +6,8 @@ from dipy.reconst.odf import (OdfFit, OdfModel, gfa)
 from dipy.reconst.peaks import (peaks_from_model,
                                 peak_directions,
                                 peak_directions_nl,
-                                reshape_peaks_for_visualization)
+                                reshape_peaks_for_visualization,
+                                dispersion_index)
 from dipy.core.subdivide_octahedron import create_unit_hemisphere
 from dipy.core.sphere import unit_icosahedron
 from dipy.sims.voxel import multi_tensor, all_tensor_evecs, multi_tensor_odf
@@ -574,6 +575,19 @@ def test_reshape_peaks_for_visualization():
     assert_array_equal(data1_reshape.reshape(10, 5, 3), data1)
     assert_array_equal(data2_reshape.reshape(10, 2, 5, 3), data2)
     assert_array_equal(data3_reshape.reshape(10, 2, 12, 5, 3), data3)
+
+def test_dispersion_idx():
+    # Simple case: three equally sized peaks at 90 degrees should give you a 1:
+    peak_values = np.array([1, 1, 1])
+    peak_dirs = np.array([[0,0,1], [0, 1, 0], [1, 0, 0]])
+
+    assert_array_equal(1, dispersion_index(peak_dirs, peak_values))
+
+    # If there's just one peak, it should be 0:
+    peak_values = np.array([1])
+    peak_dirs = np.array([[1, 0, 0]])
+
+    assert_array_equal(0, dispersion_index(peak_dirs, peak_values))
 
 
 if __name__ == '__main__':

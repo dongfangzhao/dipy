@@ -520,3 +520,45 @@ def reshape_peaks_for_visualization(peaks):
         peaks = peaks.peak_dirs
 
     return peaks.reshape(np.append(peaks.shape[:-2], -1)).astype('float32')
+
+
+def dispersion_index(peak_dir, peak_value):
+    """
+    Calculate an index of crossing, based on the peaks.
+
+    .. math :: 
+
+        DI = \sum_{i=2}^{n}{\frac{\beta_i^2 sin(\alpha_i)}}{\sum_{i}{\beta_i^2}\frac{2}{3}}
+
+    Where $\beta$ are sorted in each voxel such that the largest has the index
+    i=1, and alpha is the angle between peak i and this largest peak.
+
+    Parameters
+    ----------
+    peak_dir (..., N, 3) array
+        The directions of the peaks
+
+    peak_value (..., N) array
+        The amplitude of each peak
+    """
+    peak_dir = np.asarray(peak_dir)
+    peak_value = np.asarray(peak_value, dtype=float)
+    assert peak_dir.shape[:-1]==peak_value.shape, "Invalid input"
+
+    shape = peak_value.shape[:-1]
+    di = np.zeros(shape)
+    for idx in ndindex(shape):
+        pv = peak_value[idx]
+        pd = peak_dir[idx]
+        # Sort from largest to smallest:
+        sort_idx = np.argsort(pv)[::-1]
+        pv = pv[sort_idx]
+        pd = pd[sort_idx]
+        # This implements the equation: 
+        dir0, dirs = pd[0], pd[1:] 
+        angles = np.arccos(np.dot(dirs, dir0))
+        # Enforce antipodal symmetry:
+        angles = np.min(np.vstack([angles, np.pi-angles]), 0)
+        di[idx] = np.dot(pv[1:] ** 2 / np.sum(pv ** 2), np.sin(angles))/(2/3.)
+
+    return di
