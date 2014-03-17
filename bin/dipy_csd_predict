@@ -1,0 +1,63 @@
+#!/usr/bin/env python
+import os
+import tempfile
+import argparse as arg
+
+import numpy as np
+import nibabel as nib
+
+import dipy.reconst.csd as csd
+improt dipy.core.gradients as grad
+
+parser = arg.ArgumentParser(description='Calculate the prediction from the CSD model')
+
+parser.add_argument('dwi_file', action='store', metavar='File', 
+                    help='DWI file (.nii.gz)')
+
+parser.add_argument('bvecs_file1',action='store', metavar='File', 
+                   help='Bvecs file (FSL format)')
+
+parser.add_argument('bvals_file1', action='store', metavar='File',
+                    help='Bvals file (FSL format)')
+
+parser.add_argument('bvecs_file2',action='store', metavar='File', 
+                   help='Bvecs file (FSL format)')
+
+parser.add_argument('bvals_file2', action='store', metavar='File',
+                    help='Bvals file (FSL format)')
+
+parser.add_argument('out_file', action='store', metavar='File',
+                    help='Output file name (.nii.gz)')
+
+parser.add_argument('sh_order', action='store', metavar='Int',
+                    help='CSD order')
+
+parser.add_argument('--mask_file', action='store', metavar='File',
+                    help='Mask file (only the voxels within the binary mask will be analyzed (.nii.gz; default: analyze all) ',
+                    default=None)
+
+params = parser.parse_args()
+
+
+if __name__ == "__main__":
+    gtab1 = grad.gradient_table(params.bvals_file1, params.bvecs_file1)
+    response, ratio = csd.auto_response(gtab, data, roi_radius=10, fa_thr=0.7)
+    model = csd.ConstrainedSphericalDeconvModel(gtab, response,
+                                                sh_order=int(params.sh_order))
+    affine =  nib.load(params.dwi_file).get_affine()
+    init_data = nib.load(params.dwi_file).get_data()
+    
+    if params.mask_file is not None:
+        data = init_data[np.where(nib.load(params.mask_file).get_data()==1)]
+    else:
+        data = init_data
+                
+    fit = model.fit(data)
+    s0 = np.mean(data[..., gtab.b0s_mask], -1)
+    gtab2 = grad.gradient_table(params.bvals_file2, params.bvecs_file2)
+    prediction = fit.predict(gtab2) * S0[..., np.newaxis]
+    
+    # Do it and save: 
+    nib.Nifti1Image(prediction
+                    affine).to_filename(params.out_file)
+
