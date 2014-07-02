@@ -82,11 +82,14 @@ for modulename, other_sources in (
     ('dipy.reconst.vec_val_sum', []),
     ('dipy.reconst.quick_squash', []),
     ('dipy.tracking.distances', []),
+    ('dipy.core.streamlinespeed', []),
     ('dipy.tracking.vox2track', []),
     ('dipy.tracking.propspeed', []),
-    ('dipy.denoise.denspeed', [])):
+    ('dipy.denoise.denspeed', [])
+    ):
     pyx_src = pjoin(*modulename.split('.')) + '.pyx'
     EXTS.append(Extension(modulename,[pyx_src] + other_sources,
+                          language = "c++",
                           include_dirs = [np.get_include(), "src"]))
 
 
@@ -149,6 +152,7 @@ def main(**extra_args):
                           'dipy.tests',
                           'dipy.align',
                           'dipy.core',
+                          'dipy.core.benchmarks',
                           'dipy.core.tests',
                           'dipy.tracking',
                           'dipy.tracking.tests',
