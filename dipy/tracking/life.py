@@ -15,7 +15,7 @@ import dipy.core.sphere as dps
 from dipy.utils.six.moves import range
 from dipy.tracking.utils import unique_rows
 from dipy.tracking.streamline import transform_streamlines
-from dipy.tracking.vox2track import _voxel2streamline
+from dipy.tracking.vox2track import _streamline2voxel, streamline_mapping
 import dipy.data as dpd
 import dipy.core.optimize as opt
 
@@ -284,14 +284,14 @@ def voxel2streamline(streamline, transformed=False, affine=None,
 
     Returns
     -------
-    v2f, v2fn : tuple of arrays
+    v2f, v2fn : tuple
 
-    The first array in the tuple answers the question: Given a voxel (from
-    the unique indices in this model), which fibers pass through it? Shape:
-    (n_voxels, n_fibers).
+    The first item is a dict that answers the question: Given a voxel (from
+    the unique indices in this model), which fibers pass through it? 
 
-    The second answers the question: Given a voxel, for each fiber, which
-    nodes are in that voxel? Shape: (n_voxels, max(n_nodes per fiber)).
+    The second item is an array that answers the question: Given a voxel, for
+    each fiber, which nodes are in that voxel? Shape: (n_voxels, max(n_nodes
+    per fiber)). 
     """
     if transformed:
         transformed_streamline = streamline
@@ -306,7 +306,9 @@ def voxel2streamline(streamline, transformed=False, affine=None,
     else:
         unique_idx = unique_idx
 
-    return _voxel2streamline(transformed_streamline, unique_idx)
+    v2fn = _streamline2voxel(transformed_streamline, unique_idx)
+    v2f = streamline_mapping(transformed_streamline, affine=np.eye(4))
+    return v2f, v2fn
 
 
 class FiberModel(ReconstModel):
@@ -375,7 +377,7 @@ class FiberModel(ReconstModel):
 
         # How many fibers in each voxel (this will determine how many
         # components are in the fiber part of the matrix):
-        n_unique_f = np.sum(v2f)
+        n_unique_f = np.hstack(v2f.values()).shape[0]
 
         # Preallocate these, which will be used to generate the two sparse
         # matrices:
@@ -397,7 +399,7 @@ class FiberModel(ReconstModel):
             # dbg:
             # print(100*float(v_idx)/n_vox)
             # For each fiber:
-            for f_idx in np.where(v2f[v_idx])[0]:
+            for f_idx in v2f[vox[0], vox[1], vox[2]]:
                 # Sum the signal from each node of the fiber in that voxel:
                 vox_fiber_sig = np.zeros(n_bvecs)
                 for node_idx in np.where(v2fn[f_idx] == v_idx)[0]:

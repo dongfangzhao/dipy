@@ -16,11 +16,10 @@ cdef extern from "dpy_math.h":
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.profile(False)
-def _voxel2streamline(sl, unique_idx):
+def _streamline2voxel(sl, unique_idx):
     """
-    Maps voxels to streamlines and streamlines to voxels, for setting up
-    the LiFE equations matrix
-
+    Maps streamlines to voxels. 
+    
     Parameters
     ----------
     sl : list
@@ -43,11 +42,7 @@ def _voxel2streamline(sl, unique_idx):
 
     """
     cdef:
-        cnp.ndarray[cnp.int_t, ndim=2, mode='strided'] v2f
         cnp.ndarray[cnp.double_t, ndim=2, mode='strided'] v2fn
-
-    # Given a voxel (from the unique coords, is the fiber in here?)
-    v2f = np.zeros((len(unique_idx), len(sl)), dtype=np.int)
 
     # This is a grid of size (fibers, maximal length of a fiber), so that
     # we can capture the voxel number in each fiber/node combination:
@@ -68,15 +63,12 @@ def _voxel2streamline(sl, unique_idx):
                                     (vv[1] == unique_idx[:, 1]) *
                                     (vv[2] == unique_idx[:, 2]))[0])
 
-            # Add that combination to the grid:
-            v2f[voxel_id, s_idx] = v2f[voxel_id, s_idx] + 1
-
             # All the nodes going through this voxel get its number:
             v2fn[s_idx][np.where((sl_as_idx[:, 0] == vv[0]) *
                                  (sl_as_idx[:, 1] == vv[1]) *
                                  (sl_as_idx[:, 2] == vv[2]))] = voxel_id
 
-    return v2f ,v2fn
+    return v2fn
 
 
 
