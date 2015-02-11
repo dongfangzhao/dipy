@@ -86,10 +86,11 @@ def test_voxel2streamline():
     streamline = [[[1, 2, 3], [4, 5, 3], [5, 6, 3], [6, 7, 3]],
           [[1, 2, 3], [4, 5, 3], [5, 6, 3]]]
     affine = np.eye(4)
-    v2f, v2fn = life.voxel2streamline(streamline, False, affine)
+    v2f, v2fn, unique_coords = life.voxel2streamline(streamline, affine)
     npt.assert_array_equal(v2f[1,2,3], [0,1])
-    npt.assert_array_equal(v2fn, np.array([[0, 1, 2, 3], [0, 1, 2, np.nan]]))
-
+    npt.assert_array_equal(v2fn, np.array([[0, 1, 2, 3], [0, 1, 2]]))
+    npt.assert_array_equal(unique_coords, np.array([[1, 2, 3], [4, 5, 3],
+                                                    [5, 6, 3], [6, 7, 3]]))
 
 def test_FiberModel_init():
     # Get some small amount of data:
@@ -112,7 +113,8 @@ def test_FiberModel_init():
                                np.array([[1, 2, 3], [4, 5, 3],
                                          [5, 6, 3], [6, 7, 3]]))
 
-        npt.assert_equal(fiber_matrix.shape, (len(vox_coords)*64, len(streamline)))
+        npt.assert_equal(fiber_matrix.shape,
+                         (len(vox_coords)*64, len(streamline)))
 
 
 def test_FiberFit():
@@ -154,6 +156,7 @@ def test_FiberFit():
         this_data[vox_coords[:, 0], vox_coords[:, 1], vox_coords[:, 2]],
         fit.data)
 
+
 def test_fit_data():
     fdata, fbval, fbvec = dpd.get_data('small_25')
     gtab = grad.gradient_table(fbval, fbvec)
@@ -168,7 +171,8 @@ def test_fit_data():
                   odf_vertices=sphere.vertices, a_low=0)
     tensor_streamlines = [streamline for streamline in eu]
     life_model = life.FiberModel(gtab)
-    life_fit = life_model.fit(data, tensor_streamlines)
+    life_fit = life_model.fit(data, tensor_streamlines,
+                              affine=np.eye(4))
     model_error = life_fit.predict() - life_fit.data
     model_rmse = np.sqrt(np.mean(model_error ** 2, -1))
     matlab_rmse, matlab_weights = dpd.matlab_life_results()

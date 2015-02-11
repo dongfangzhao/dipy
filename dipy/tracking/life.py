@@ -20,6 +20,37 @@ import dipy.data as dpd
 import dipy.core.optimize as opt
 
 
+def _streamline2voxel(sl, unique_idx):
+    """
+    Maps streamlines to voxels. 
+    
+    Parameters
+    ----------
+    sl : list
+        A collection of streamlines, each n by 3, with n being the number of
+        nodes in the fiber.
+
+    unique_idx : array.
+       The unique indices in the streamlines
+
+    Returns
+    -------
+    v2fn : array
+
+    Answers the question: Given a streamline, which of the voxels is each of
+    the nodes of that streamline, Shape: (n_streamlines, max(n_nodes per
+    streamline)), with -1 marking all the nodes beyond the end of the streamline.
+    """
+    v2fn = []
+    for s_idx in range(len(sl)):
+        v2fn.append([])
+        s = np.round(sl[s_idx]).astype(int)
+        for vv, vox in enumerate(unique_idx):
+            for c in s:
+                if c[0] == vox[0] and c[1] == vox[1] and c[2] == vox[2]:
+                    v2fn[-1].append(vv)
+    return v2fn
+
 def gradient(f):
     """
     Return the gradient of an N-dimensional array.
@@ -259,8 +290,7 @@ class LifeSignalMaker(object):
         return [self.calc_signal(g) for g in grad]
 
 
-def voxel2streamline(streamline, transformed=False, affine=None,
-                     unique_idx=None):
+def voxel2streamline(streamline, affine=None):
     """
     Maps voxels to streamlines and streamlines to voxels, for setting up
     the LiFE equations matrix
@@ -275,13 +305,6 @@ def voxel2streamline(streamline, transformed=False, affine=None,
        Defines the spatial transformation from streamline to data.
        Default: np.eye(4)
 
-    transformed : bool (optional)
-        Whether the streamlines have been already transformed (in which case
-        they don't need to be transformed in here).
-
-    unique_idx : array (optional).
-       The unique indices in the streamlines
-
     Returns
     -------
     v2f, v2fn : tuple
@@ -293,22 +316,10 @@ def voxel2streamline(streamline, transformed=False, affine=None,
     each fiber, which nodes are in that voxel? Shape: (n_voxels, max(n_nodes
     per fiber)). 
     """
-    if transformed:
-        transformed_streamline = streamline
-    else:
-        if affine is None:
-            affine = np.eye(4)
-        transformed_streamline = transform_streamlines(streamline, affine)
-
-    if unique_idx is None:
-        all_coords = np.concatenate(transformed_streamline)
-        unique_idx = unique_rows(all_coords.astype(int))
-    else:
-        unique_idx = unique_idx
-
-    v2fn = _streamline2voxel(transformed_streamline, unique_idx)
-    v2f = streamline_mapping(transformed_streamline, affine=np.eye(4))
-    return v2f, v2fn
+    v2f = streamline_mapping(streamline, affine=np.eye(4))
+    unique_idx = np.array(list(set(v2f.keys()))[::-1])    
+    v2fn = _streamline2voxel(streamline, unique_idx)
+    return v2f, v2fn, unique_idx
 
 
 class FiberModel(ReconstModel):
@@ -357,24 +368,24 @@ class FiberModel(ReconstModel):
             an approximation. Defaults to use the 724-vertex symmetric sphere
             from :mod:`dipy.data`
         """
-        if sphere is not False:
+        if affine is None:
+            affine = np.eye(4)
+        sl = transform_streamlines(streamline, affine)
+        if sphere:
             SignalMaker = LifeSignalMaker(self.gtab,
                                           evals=evals,
                                           sphere=sphere)
-
-        if affine is None:
-            affine = np.eye(4)
-        streamline = transform_streamlines(streamline, affine)
-        # Assign some local variables, for shorthand:
-        all_coords = np.concatenate(streamline)
-        vox_coords = unique_rows(all_coords.astype(int))
+            fiber_signal = [SignalMaker.streamline_signal(s) for s in
+                            sl]            
+        else:
+            fiber_signal = [streamline_signal(s, self.gtab, evals)
+                            for s in sl]
+            
+        v2f, v2fn, unique_idx = voxel2streamline(sl)
+        vox_coords = unique_idx
         n_vox = vox_coords.shape[0]
         # We only consider the diffusion-weighted signals:
         n_bvecs = self.gtab.bvals[~self.gtab.b0s_mask].shape[0]
-
-        v2f, v2fn = voxel2streamline(streamline, transformed=True,
-                                     affine=affine, unique_idx=vox_coords)
-
         # How many fibers in each voxel (this will determine how many
         # components are in the fiber part of the matrix):
         n_unique_f = np.hstack(v2f.values()).shape[0]
@@ -388,11 +399,6 @@ class FiberModel(ReconstModel):
         f_matrix_col = np.zeros(n_unique_f * n_bvecs)
 
         keep_ct = 0
-        if sphere is not False:
-            fiber_signal = [SignalMaker.streamline_signal(s) for s in streamline]
-        else:
-            fiber_signal = [streamline_signal(s, self.gtab, evals)
-                            for s in streamline]
 
         # In each voxel:
         for v_idx, vox in enumerate(vox_coords):
@@ -402,7 +408,7 @@ class FiberModel(ReconstModel):
             for f_idx in v2f[vox[0], vox[1], vox[2]]:
                 # Sum the signal from each node of the fiber in that voxel:
                 vox_fiber_sig = np.zeros(n_bvecs)
-                for node_idx in np.where(v2fn[f_idx] == v_idx)[0]:
+                for node_idx in np.where(np.array(v2fn[f_idx]) == v_idx)[0]:
                     this_signal = fiber_signal[f_idx][node_idx]
                     vox_fiber_sig += (this_signal - np.mean(this_signal))
                 # For each fiber-voxel combination, we now store the row/column
