@@ -16,37 +16,39 @@ cdef extern from "dpy_math.h":
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.profile(False)
-## def _streamline2voxel(sl, unique_idx):
-##     """
-##     Maps streamlines to voxels. 
+def _streamline2voxel(sl, unique_idx):
+    """
+    Maps streamlines to voxels. 
     
-##     Parameters
-##     ----------
-##     sl : list
-##         A collection of streamlines, each n by 3, with n being the number of
-##         nodes in the fiber.
+    Parameters
+    ----------
+    sl : list
+        A collection of streamlines, each n by 3, with n being the number of
+        nodes in the fiber.
 
-##     unique_idx : array.
-##        The unique indices in the streamlines
+    unique_idx : array.
+       The unique indices in the streamlines
 
-##     Returns
-##     -------
-##     v2fn : array
+    Returns
+    -------
+    v2fn : dict
 
-##     Answers the question: Given a streamline, which of the voxels is each of
-##     the nodes of that streamline, Shape: (n_streamlines, max(n_nodes per
-##     streamline)), with -1 marking all the nodes beyond the end of the streamline.
-##     """
-##     v2fn = []
-##     #cdef int s_idx, vv
-##     for s_idx in range(len(sl)):
-##         v2fn.append([])
-##         s = np.round(sl[s_idx]).astype(int)
-##         for vv, vox in enumerate(unique_idx):
-##             for c in s:
-##                 if c[0] == vox[0] and c[1] == vox[1] and c[2] == vox[2]:
-##                     v2fn[-1].append(vv)
-##     return v2fn
+    Answers the question: Given a streamline, which of the voxels corresponds
+    to each of the nodes of that streamline
+    """
+    v2fn = {}
+    cdef int vv, ss, c
+    for vv in range(len(unique_idx)):
+        vox = unique_idx[vv] 
+        for ss in range(len(sl)):
+            s = np.round(sl[ss]).astype(int)
+            for c in range(len(s)):
+                if s[c][0] == vox[0] and s[c][1] == vox[1] and s[c][2] == vox[2]:
+                    if ss in v2fn:
+                        v2fn[ss].append(vv)
+                    else:
+                        v2fn[ss] = [vv]
+    return v2fn
 
 def streamline_mapping(streamlines, voxel_size=None, affine=None,
                        mapping_as_streamlines=False):

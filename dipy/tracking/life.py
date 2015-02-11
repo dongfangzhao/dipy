@@ -20,37 +20,6 @@ import dipy.data as dpd
 import dipy.core.optimize as opt
 
 
-def _streamline2voxel(sl, unique_idx):
-    """
-    Maps streamlines to voxels. 
-    
-    Parameters
-    ----------
-    sl : list
-        A collection of streamlines, each n by 3, with n being the number of
-        nodes in the fiber.
-
-    unique_idx : array.
-       The unique indices in the streamlines
-
-    Returns
-    -------
-    v2fn : array
-
-    Answers the question: Given a streamline, which of the voxels is each of
-    the nodes of that streamline, Shape: (n_streamlines, max(n_nodes per
-    streamline)), with -1 marking all the nodes beyond the end of the streamline.
-    """
-    v2fn = []
-    for s_idx in range(len(sl)):
-        v2fn.append([])
-        s = np.round(sl[s_idx]).astype(int)
-        for vv, vox in enumerate(unique_idx):
-            for c in s:
-                if c[0] == vox[0] and c[1] == vox[1] and c[2] == vox[2]:
-                    v2fn[-1].append(vv)
-    return v2fn
-
 def gradient(f):
     """
     Return the gradient of an N-dimensional array.
