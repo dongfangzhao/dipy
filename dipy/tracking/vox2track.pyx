@@ -43,21 +43,22 @@ def _streamline2voxel(sl, unique_idx):
     cdef int n_nodes = 0 
     for s_idx in range(len(sl)):
         n_nodes = n_nodes + sl[s_idx].shape[0]
-        
-    sl2v = np.empty(n_nodes, dtype=np.int)
+
+    sl2v = np.zeros(n_nodes, dtype=np.int)
     cdef int ss, nn, vv
     cdef int ii = 0 
     for ss in range(len(sl)):
-        for nn in range(len(sl[ss])):
-            this_node = np.round(sl[ss][nn])
-            for vv in range(len(unique_idx)):
+        this_sl = sl[ss]
+        for nn in range(this_sl.shape[0]):
+            this_node = np.round(this_sl[nn])
+            ii = ii +1
+            for vv in range(unique_idx.shape[0]):
                 # When you find the right voxel, you can move on to the next
                 # node:
                 if (this_node[0] == unique_idx[vv][0] and
                     this_node[1] == unique_idx[vv][1] and
                     this_node[2] == unique_idx[vv][2]):
                     sl2v[ii] = vv
-                    ii = ii +1
                     break
     return sl2v
 
