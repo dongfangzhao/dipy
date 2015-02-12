@@ -36,19 +36,30 @@ def _streamline2voxel(sl, unique_idx):
     Answers the question: Given a streamline, which of the voxels corresponds
     to each of the nodes of that streamline
     """
-    v2fn = {}
-    cdef int vv, ss, c
-    for vv in range(len(unique_idx)):
-        vox = unique_idx[vv] 
-        for ss in range(len(sl)):
-            s = np.round(sl[ss]).astype(int)
-            for c in range(len(s)):
-                if s[c][0] == vox[0] and s[c][1] == vox[1] and s[c][2] == vox[2]:
-                    if ss in v2fn:
-                        v2fn[ss].append(vv)
-                    else:
-                        v2fn[ss] = [vv]
-    return v2fn
+    cdef:
+        cnp.ndarray[cnp.int_t, ndim=1, mode='strided'] sl2v
+
+    # Count the total number of nodes:
+    cdef int n_nodes = 0 
+    for s_idx in range(len(sl)):
+        n_nodes = n_nodes + sl[s_idx].shape[0]
+        
+    sl2v = np.empty(n_nodes, dtype=np.int)
+    cdef int ss, nn, vv
+    cdef int ii = 0 
+    for ss in range(len(sl)):
+        for nn in range(len(sl[ss])):
+            this_node = np.round(sl[ss][nn])
+            for vv in range(len(unique_idx)):
+                # When you find the right voxel, you can move on to the next
+                # node:
+                if (this_node[0] == unique_idx[vv][0] and
+                    this_node[1] == unique_idx[vv][1] and
+                    this_node[2] == unique_idx[vv][2]):
+                    sl2v[ii] = vv
+                    ii = ii +1
+                    break
+    return sl2v
 
 def streamline_mapping(streamlines, voxel_size=None, affine=None,
                        mapping_as_streamlines=False):

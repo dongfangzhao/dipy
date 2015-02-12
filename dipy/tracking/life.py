@@ -19,7 +19,6 @@ from dipy.tracking.vox2track import _streamline2voxel, streamline_mapping
 import dipy.data as dpd
 import dipy.core.optimize as opt
 
-
 def gradient(f):
     """
     Return the gradient of an N-dimensional array.
@@ -276,19 +275,18 @@ def voxel2streamline(streamline, affine=None):
 
     Returns
     -------
-    v2f, v2fn : tuple
+    v2f, sl2v : tuple
 
     The first item is a dict that answers the question: Given a voxel (from
     the unique indices in this model), which fibers pass through it? 
 
-    The second item is an array that answers the question: Given a voxel, for
-    each fiber, which nodes are in that voxel? Shape: (n_voxels, max(n_nodes
-    per fiber)). 
+    The second item is an array that answers the question: Given a streamline,
+    which of the voxels corresponds to each of the nodes of that streamline
     """
     v2f = streamline_mapping(streamline, affine=np.eye(4))
     unique_idx = np.array(list(set(v2f.keys()))[::-1])    
-    v2fn = _streamline2voxel(streamline, unique_idx)
-    return v2f, v2fn, unique_idx
+    sl2v = _streamline2voxel(streamline, unique_idx)
+    return v2f, sl2v, unique_idx
 
 
 class FiberModel(ReconstModel):
@@ -340,17 +338,23 @@ class FiberModel(ReconstModel):
         if affine is None:
             affine = np.eye(4)
         sl = transform_streamlines(streamline, affine)
+
+        # Number of nodes per fiber:
+        n_nodes = []
+        fiber_signal = []
         if sphere:
             SignalMaker = LifeSignalMaker(self.gtab,
                                           evals=evals,
                                           sphere=sphere)
-            fiber_signal = [SignalMaker.streamline_signal(s) for s in
-                            sl]            
+            for s in sl:
+                fiber_signal.append(SignalMaker.streamline_signal(s))
+                n_nodes.append(s.shape[0])
         else:
-            fiber_signal = [streamline_signal(s, self.gtab, evals)
-                            for s in sl]
+            for s in sl:
+                n_nodes.append(s.shape[0])
+                fiber_signal.append(streamline_signal(s, self.gtab, evals))
             
-        v2f, v2fn, unique_idx = voxel2streamline(sl)
+        v2f, sl2v, unique_idx = voxel2streamline(sl)
         vox_coords = unique_idx
         n_vox = vox_coords.shape[0]
         # We only consider the diffusion-weighted signals:
@@ -377,8 +381,12 @@ class FiberModel(ReconstModel):
             for f_idx in v2f[vox[0], vox[1], vox[2]]:
                 # Sum the signal from each node of the fiber in that voxel:
                 vox_fiber_sig = np.zeros(n_bvecs)
-                for node_idx in np.where(np.array(v2fn[f_idx]) == v_idx)[0]:
-                    this_signal = fiber_signal[f_idx][node_idx]
+                # Index into sl2v in the right place:
+                n0 = sl2v[np.sum(n_nodes[:f_idx])]
+                n1 = n0 + n_nodes[f_idx]
+                sl_nodes = sl2v[n0:n1]
+                for node_idx in np.where(sl_nodes == v_idx)[0]:
+                    this_signal = fiber_signal[f_idx][node_idx]             
                     vox_fiber_sig += (this_signal - np.mean(this_signal))
                 # For each fiber-voxel combination, we now store the row/column
                 # indices and the signal in the pre-allocated linear arrays
