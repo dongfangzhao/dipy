@@ -108,12 +108,18 @@ def test_FiberModel_init():
     affine = np.eye(4)
 
     for sphere in [None, False, dpd.get_sphere('symmetric362')]:
-        fiber_matrix, vox_coords = FM.setup(streamline, affine, sphere=sphere)
+
+        vox_coords, v2f, v2fn, fiber_signal = FM.setup(streamline, affine,
+                                                       sphere=sphere)
+
         npt.assert_array_equal(np.array(vox_coords),
                                np.array([[1, 2, 3], [4, 5, 3],
                                          [5, 6, 3], [6, 7, 3]]))
 
-        npt.assert_equal(fiber_matrix.shape, (len(vox_coords)*64, len(streamline)))
+        fiber_matrix = FM._compose_matrix(range(vox_coords.shape[0]), v2f, v2fn,
+                                          fiber_signal)
+        npt.assert_equal(fiber_matrix.shape, (len(vox_coords)*64,
+                                              len(streamline)))
 
 
 def test_FiberFit():
@@ -129,7 +135,10 @@ def test_FiberFit():
     streamline = [[[1, 2, 3], [4, 5, 3], [5, 6, 3], [6, 7, 3]],
           [[1, 2, 3], [4, 5, 3], [5, 6, 3]]]
 
-    fiber_matrix, vox_coords = FM.setup(streamline, None, evals)
+    vox_coords, v2f, v2fn, fiber_signal = FM.setup(streamline, None, evals)
+    
+    fiber_matrix = FM._compose_matrix(range(vox_coords.shape[0]),
+                                      v2f, v2fn, fiber_signal)
 
     w = np.array([0.5, 0.5])
     sig = opt.spdot(fiber_matrix, w) + 1.0  # Add some isotropic stuff
@@ -177,3 +186,8 @@ def test_fit_data():
     npt.assert_(np.median(model_rmse) < np.median(matlab_rmse))
     # And a moderate correlation with the Matlab implementation weights:
     npt.assert_(np.corrcoef(matlab_weights, life_fit.beta)[0, 1] > 0.68)
+
+    life_fit_stochastic = life_model.fit(data, tensor_streamlines,
+                                         stochastic=0.5, tol=0.1)
+    npt.assert_(np.corrcoef(life_fit_stochastic.beta,
+                            life_fit.beta)[0, 1] > 0.68)

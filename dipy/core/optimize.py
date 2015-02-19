@@ -300,7 +300,8 @@ def sparse_nnls(y, X,
                 non_neg=True,
                 check_error_iter=10,
                 max_error_checks=10,
-                converge_on_sse=0.99):
+                converge_on_sse=0.99,
+                beta0=None):
     """
 
     Solve y=Xh for h, using gradient descent, with X a sparse matrix
@@ -335,14 +336,20 @@ def sparse_nnls(y, X,
       a percentage improvement in SSE that is required each time to say
       that things are still going well.
 
+    beta0 : array
+      Proposed starting point for the optimization. Default: start at the origin.
+
     Returns
     -------
     h_best : The best estimate of the parameters.
 
     """
     num_regressors = X.shape[1]
-    # Initialize the parameters at the origin:
-    h = np.zeros(num_regressors)
+    if beta0 is None:
+        # Initialize the parameters at the origin:
+        h = np.zeros(num_regressors)
+    else:
+        h = beta0
     # If nothing good happens, we'll return that:
     h_best = h
     gradient = np.zeros(num_regressors)
