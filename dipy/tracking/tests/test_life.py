@@ -179,7 +179,8 @@ def test_fit_data():
     tensor_streamlines = [streamline for streamline in eu]
     life_model = life.FiberModel(gtab)
     life_fit = life_model.fit(data, tensor_streamlines)
-    model_error = life_fit.predict() - life_fit.data
+    prediction = life_fit.predict()
+    model_error =  prediction - life_fit.data
     model_rmse = np.sqrt(np.mean(model_error ** 2, -1))
     matlab_rmse, matlab_weights = dpd.matlab_life_results()
     # Lower error than the matlab implementation for these data:
@@ -187,7 +188,17 @@ def test_fit_data():
     # And a moderate correlation with the Matlab implementation weights:
     npt.assert_(np.corrcoef(matlab_weights, life_fit.beta)[0, 1] > 0.68)
 
+    # fix this for purposes of testing the stochastic method:
+    np.random.seed(2020)
     life_fit_stochastic = life_model.fit(data, tensor_streamlines,
-                                         stochastic=0.5, tol=0.1)
-    npt.assert_(np.corrcoef(life_fit_stochastic.beta,
-                            life_fit.beta)[0, 1] > 0.68)
+                                         stochastic=0.3, tol=0.1)
+
+    # We'll require the same level of correlation here:
+    npt.assert_(np.corrcoef(life_fit_stochastic.beta, life_fit.beta)[0, 1]>0.68)
+
+    stochastic_prediction = life_fit_stochastic.predict()
+    # This is going to be rather loose. Less than 10 procent of predicted
+    # measurements are different by more than 10 (arbitrary) scanner units from
+    # the full (non-stochastic) prediction:
+    npt.assert_(np.sum((stochastic_prediction - prediction) > 10)/
+                float(np.prod(prediction.shape))<0.1)

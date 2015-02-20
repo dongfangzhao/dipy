@@ -510,10 +510,9 @@ class FiberModel(ReconstModel):
         vidx = range(vox_coords.shape[0])
         if stochastic:
             beta = np.zeros(len(streamline))
-            going = 1
+            percent_change = 1.0
             count = 0
-            while going>tol:
-                count = count+1
+            while percent_change>tol:
                 this_vidx = np.random.permutation(vidx)[:stochastic * len(vidx)]
                 life_matrix, fidx = self._compose_matrix(this_vidx, v2f, v2fn,
                                                          fiber_signal,
@@ -526,8 +525,10 @@ class FiberModel(ReconstModel):
                                             beta0=new_beta[:np.max(fidx)+1])
                 new_beta[:np.max(fidx)+1] = this_beta
                 progress = new_beta - beta
+                percent_change = (np.dot(progress, progress)/
+                                 np.dot(new_beta, new_beta))
+                count = count + 1
                 beta = new_beta
-                going = np.dot(progress, progress)/np.dot(new_beta, new_beta)
             # We don't have a definitive matrix here, and will need to
             # construct it piece by piece for prediction:
             life_matrix = None
@@ -537,7 +538,8 @@ class FiberModel(ReconstModel):
 
         return FiberFit(self, life_matrix, vox_coords, to_fit, beta,
                         weighted_signal, b0_signal, relative_signal, mean_sig,
-                        vox_data, streamline, affine, evals)
+                        vox_data, streamline, affine, evals, v2f, v2fn,
+                        fiber_signal)
 
 
 class FiberFit(ReconstFit):
@@ -546,7 +548,7 @@ class FiberFit(ReconstFit):
     """
     def __init__(self, fiber_model, life_matrix, vox_coords, to_fit, beta,
                  weighted_signal, b0_signal, relative_signal, mean_sig,
-                 vox_data, streamline, affine, evals):
+                 vox_data, streamline, affine, evals, v2f, v2fn, fiber_signal):
         """
         Parameters
         ----------
@@ -568,6 +570,9 @@ class FiberFit(ReconstFit):
         self.streamline = streamline
         self.affine = affine
         self.evals = evals
+        self.v2f = v2f
+        self.v2fn = v2fn
+        self.fiber_signal = fiber_signal
 
     def predict(self, gtab=None, S0=None):
         """
@@ -586,32 +591,49 @@ class FiberFit(ReconstFit):
         prediction : ndarray of shape (voxels, bvecs)
             An array with a prediction of the signal in each voxel/direction
         """
-        # We generate the prediction and in each voxel, we add the
-        # offset, according to the isotropic part of the signal, which was
-        # removed prior to fitting:
+        # If no alternative gtab is provided, we use the details from the
+        # model:
         if gtab is None:
             _matrix = self.life_matrix
             gtab = self.model.gtab
+            v2f, v2fn, fiber_signal = self.v2f, self.v2fn, self.fiber_signal
+            _model = self.model
         else:
             _model = FiberModel(gtab)
             # Need to compute these for this alternative gtab:
             _, v2f, v2fn, fiber_signal = _model.setup(self.streamline,
-                                                  self.affine,
-                                                  self.evals)
+                                                      self.affine,
+                                                      self.evals)
             
-            _matrix = _model._compose_matrix(range(self.vox_coords.shape[0]),
-                                             v2f, v2fn, fiber_signal)
-            
-        pred_weighted = np.reshape(opt.spdot(_matrix, self.beta),
-                                   (self.vox_coords.shape[0],
-                                    np.sum(~gtab.b0s_mask)))
-
+            if self.life_matrix is not None:
+                _matrix = _model._compose_matrix(range(self.vox_coords.shape[0]),
+                                                 v2f, v2fn, fiber_signal)
+        # Allocate upfront:
         pred = np.empty((self.vox_coords.shape[0], gtab.bvals.shape[0]))
+
+        # These are determined, regardless:
         if S0 is None:
             S0 = self.b0_signal
 
         pred[..., gtab.b0s_mask] = S0[:, None]
+        # If the matrix is set to None, this means that stochastic fitting
+        # method was used, and we'll need to predict voxel by voxel:
+        if self.life_matrix is not None:
+            pred_weighted = np.reshape(opt.spdot(_matrix, self.beta),
+                                       (self.vox_coords.shape[0],
+                                        np.sum(~gtab.b0s_mask)))
+        else:
+            pred_weighted = np.empty((self.vox_coords.shape[0],
+                                     np.sum(~gtab.b0s_mask)))
+            vidx = range(self.vox_coords.shape[0])
+            for vv in vidx:
+                this_matrix, fidx = _model._compose_matrix([vv], v2f, v2fn,
+                                                            fiber_signal,
+                                                            return_fidx=True)
+
+                pred_weighted[vv] =\
+                               opt.spdot(this_matrix, self.beta[:np.max(fidx)+1])
+
         pred[..., ~gtab.b0s_mask] =\
             (pred_weighted + self.mean_signal[:, None]) * S0[:, None]
-
-        return pred
+        return pred    
