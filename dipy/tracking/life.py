@@ -370,7 +370,7 @@ class FiberModel(ReconstModel):
 
     def _compose_matrix(self, vidx, v2f, v2fn, streamlines,
                         evals=[0.001, 0, 0], sphere=None,
-                        return_fidx=False):
+                        return_fidx=False, cache=None):
         """
 
         Parameters
@@ -381,6 +381,9 @@ class FiberModel(ReconstModel):
         -------
         life_matrix : 
         fidx : the relevant fiber indices
+        cache : a list of the signals associated with each fiber. If None,
+            these will be calculated online (saves memory, but takes longer
+            time).
         """
         SignalMaker = LifeSignalMaker(self.gtab,
                                       evals=evals,
@@ -410,8 +413,10 @@ class FiberModel(ReconstModel):
                 # indices in the pre-allocated linear arrays
                 f_matrix_row[keep_ct:keep_ct+n_bvecs] = mat_row_idx
                 f_matrix_col[keep_ct:keep_ct+n_bvecs] = f_idx
-                s = streamlines[f_idx]
-                fiber_signal = SignalMaker.streamline_signal(s)
+                if cache is not None:
+                    fiber_signal = cache[f_idx]
+                else:
+                    fiber_signal = SignalMaker.streamline_signal(s)
                 vox_fiber_sig = np.zeros(n_bvecs)
                 for node_idx in v2fn[f_idx][v_idx]:
                     # Sum the signal from each node of the fiber in that voxel:
@@ -456,7 +461,7 @@ class FiberModel(ReconstModel):
                 vox_data)
 
     def fit(self, data, streamline, affine=None, evals=[0.001, 0, 0],
-            sphere=None, stochastic=False, tol=0.1):
+            sphere=None, stochastic=False, tol=0.1, cache_signal=False):
         """
         Fit the LiFE FiberModel for data and a set of streamlines associated
         with this data
@@ -502,6 +507,13 @@ class FiberModel(ReconstModel):
         to_fit, weighted_signal, b0_signal, relative_signal, mean_sig, vox_data=\
              self._signals(data, vox_coords)
 
+        cache = None
+        if cache_signal:
+            SignalMaker = LifeSignalMaker(self.gtab,
+                                          evals=evals,
+                                          sphere=sphere)
+            cache = [SignalMaker.streamline_signal(s) for s in streamline]
+
         vidx = range(vox_coords.shape[0])
         if stochastic:
             beta = np.zeros(len(streamline))
@@ -513,7 +525,8 @@ class FiberModel(ReconstModel):
                 this_vidx = np.random.permutation(vidx)[:stochastic * len(vidx)]
                 life_matrix, fidx = self._compose_matrix(this_vidx, v2f, v2fn,
                                                          streamline,
-                                                         return_fidx=True)
+                                                         return_fidx=True,
+                                                         cache=cache)
                 memory_usage()
                 # Need to account for the fact that not all streamlines make it
                 # into the matrix:
@@ -533,7 +546,8 @@ class FiberModel(ReconstModel):
             # construct it piece by piece for prediction:
             life_matrix = None
         else:
-            life_matrix = self._compose_matrix(vidx, v2f, v2fn, streamline)
+            life_matrix = self._compose_matrix(vidx, v2f, v2fn, streamline,
+                                               cache=cache)
             beta = opt.sparse_nnls(to_fit.ravel(), life_matrix)
 
         return FiberFit(self, life_matrix, vox_coords, to_fit, beta,
