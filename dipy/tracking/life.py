@@ -6,6 +6,8 @@ Pestilli, F., Yeatman, J, Rokem, A. Kay, K. and Wandell B.A. (2014). Validation
 and statistical inference in living connectomes. Nature Methods 11:
 1058-1063. doi:10.1038/nmeth.3098
 """
+import resource
+
 import numpy as np
 import scipy.sparse as sps
 import scipy.linalg as la
@@ -17,6 +19,10 @@ from dipy.tracking.streamline import transform_streamlines
 from dipy.tracking.vox2track import _voxel2streamline
 import dipy.data as dpd
 import dipy.core.optimize as opt
+
+
+def memory_usage():
+    print('Memory usage: %s'%resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
 
 
 def gradient(f):
@@ -225,7 +231,7 @@ class LifeSignalMaker(object):
             symmetric sphere with 724 vertices
         """
         if sphere is None:
-            self.sphere = dpd.get_sphere('symmetric724')
+            self.sphere = dpd.get_sphere('symmetric362')
         else:
             self.sphere = sphere
 
@@ -257,10 +263,7 @@ class LifeSignalMaker(object):
         Approximate the signal for a given streamline
         """
         grad = streamline_gradients(streamline)
-        sig_out = np.zeros((grad.shape[0], self.signal.shape[-1]))
-        for ii, g in enumerate(grad):
-            sig_out[ii] = self.calc_signal(g)
-        return sig_out
+        return [self.calc_signal(g) for g in grad]
 
 
 def voxel2streamline(streamline, transformed=False, affine=None,
@@ -336,7 +339,7 @@ class FiberModel(ReconstModel):
         # Initialize the super-class:
         ReconstModel.__init__(self, gtab)
 
-    def setup(self, streamline, affine, evals=[0.001, 0, 0], sphere=None):
+    def setup(self, streamline, affine):
         """
         Set up the necessary components for the LiFE model: the matrix of
         fiber-contributions to the DWI signal, and the coordinates of voxels
@@ -359,27 +362,14 @@ class FiberModel(ReconstModel):
             an approximation. Defaults to use the 724-vertex symmetric sphere
             from :mod:`dipy.data`
         """
-        if sphere is not False:
-            SignalMaker = LifeSignalMaker(self.gtab,
-                                          evals=evals,
-                                          sphere=sphere)
-
-        # Assign some local variables, for shorthand:
         all_coords = np.concatenate(streamline)
         vox_coords = unique_rows(all_coords.astype(int))
         v2f, v2fn = voxel2streamline(streamline, transformed=True,
                                      affine=affine, unique_idx=vox_coords)
+        return vox_coords, v2f, v2fn
 
-        fiber_signal = []
-        for s_idx, s in enumerate(streamline):
-            if sphere is not False:
-                fiber_signal.append(SignalMaker.streamline_signal(s))
-            else:
-                fiber_signal.append(streamline_signal(s, self.gtab, evals))
-
-        return vox_coords, v2f, v2fn, fiber_signal
-
-    def _compose_matrix(self, vidx, v2f, v2fn, fiber_signal,
+    def _compose_matrix(self, vidx, v2f, v2fn, streamlines,
+                        evals=[0.001, 0, 0], sphere=None,
                         return_fidx=False):
         """
 
@@ -392,6 +382,9 @@ class FiberModel(ReconstModel):
         life_matrix : 
         fidx : the relevant fiber indices
         """
+        SignalMaker = LifeSignalMaker(self.gtab,
+                                      evals=evals,
+                                      sphere=sphere)
         # We only consider the diffusion-weighted signals:
         n_bvecs = self.gtab.bvals[~self.gtab.b0s_mask].shape[0]
         # How many fibers in each voxel (this will determine how many
@@ -404,29 +397,32 @@ class FiberModel(ReconstModel):
         f_matrix_col = np.zeros(n_unique_f * n_bvecs, dtype=np.int)
         keep_ct = 0
         range_bvecs = np.arange(n_bvecs).astype(int)
-        # In each voxel:        
+        # In each voxel:
+        n_vox = len(vidx)
         for ii, v_idx in enumerate(vidx):
-            # dbg:
-            #if not np.mod(v_idx, 1000):
-            #    print("voxel %s"%(100*float(v_idx)/n_vox))
             mat_row_idx = (range_bvecs + ii * n_bvecs).astype(np.int32)
+            # dbg:
+            if not np.mod(ii, 1000):
+                print('voxel: %s'%(100 * float(ii)/n_vox) ) 
             #For each fiber in that voxel:
             for f_idx in v2f[v_idx]:
                 # For each fiber-voxel combination, store the row/column
                 # indices in the pre-allocated linear arrays
                 f_matrix_row[keep_ct:keep_ct+n_bvecs] = mat_row_idx
                 f_matrix_col[keep_ct:keep_ct+n_bvecs] = f_idx
-                
+                s = streamlines[f_idx]
+                fiber_signal = SignalMaker.streamline_signal(s)
                 vox_fiber_sig = np.zeros(n_bvecs)
                 for node_idx in v2fn[f_idx][v_idx]:
                     # Sum the signal from each node of the fiber in that voxel:
-                    vox_fiber_sig += fiber_signal[f_idx][node_idx]
+                    vox_fiber_sig += fiber_signal[node_idx]
                 # And add the summed thing into the corresponding rows:
                 f_matrix_sig[keep_ct:keep_ct+n_bvecs] += vox_fiber_sig
                 keep_ct = keep_ct + n_bvecs
 
         life_matrix = sps.csr_matrix((f_matrix_sig,
                                       [f_matrix_row, f_matrix_col]))
+
         if return_fidx:
             return life_matrix, np.unique(f_matrix_col)
         else:
@@ -481,14 +477,14 @@ class FiberModel(ReconstModel):
            The eigenvalues of the tensor response function used in constructing
            the model signal. Default: [0.001, 0, 0]
 
-        sphere: `dipy.core.Sphere` instance, or False
+        sphere : `dipy.core.Sphere` instance, or False
             Whether to approximate (and cache) the signal on a discrete
             sphere. This may confer a significant speed-up in setting up the
             problem, but is not as accurate. If `False`, we use the exact
             gradients along the streamlines to calculate the matrix, instead of
             an approximation.
 
-        stochastic: float
+        stochastic : float
            The proportion of voxel coordinates to consider in each iteration of
            a stochastic version of the algorithm. Default: False, which means
            that no stochasticity is applied.
@@ -501,8 +497,7 @@ class FiberModel(ReconstModel):
             affine = np.eye(4)
         streamline = transform_streamlines(streamline, affine)
 
-        vox_coords, v2f, v2fn, fiber_signal =\
-             self.setup(streamline, affine, evals=evals, sphere=sphere)
+        vox_coords, v2f, v2fn = self.setup(streamline, affine)
 
         to_fit, weighted_signal, b0_signal, relative_signal, mean_sig, vox_data=\
              self._signals(data, vox_coords)
@@ -512,17 +507,22 @@ class FiberModel(ReconstModel):
             beta = np.zeros(len(streamline))
             percent_change = 1.0
             count = 0
+            memory_usage()
             while percent_change>tol:
+                print("count: %s"%count)
                 this_vidx = np.random.permutation(vidx)[:stochastic * len(vidx)]
                 life_matrix, fidx = self._compose_matrix(this_vidx, v2f, v2fn,
-                                                         fiber_signal,
+                                                         streamline,
                                                          return_fidx=True)
+                memory_usage()
                 # Need to account for the fact that not all streamlines make it
                 # into the matrix:
                 this_fit = to_fit[this_vidx].ravel()
                 new_beta = np.copy(beta)
+                print("count: %s"%count)
                 this_beta = opt.sparse_nnls(this_fit, life_matrix,
                                             beta0=new_beta[:np.max(fidx)+1])
+                memory_usage()
                 new_beta[:np.max(fidx)+1] = this_beta
                 progress = new_beta - beta
                 percent_change = (np.dot(progress, progress)/
@@ -533,13 +533,12 @@ class FiberModel(ReconstModel):
             # construct it piece by piece for prediction:
             life_matrix = None
         else:
-            life_matrix = self._compose_matrix(vidx, v2f, v2fn, fiber_signal)
+            life_matrix = self._compose_matrix(vidx, v2f, v2fn, streamline)
             beta = opt.sparse_nnls(to_fit.ravel(), life_matrix)
 
         return FiberFit(self, life_matrix, vox_coords, to_fit, beta,
                         weighted_signal, b0_signal, relative_signal, mean_sig,
-                        vox_data, streamline, affine, evals, v2f, v2fn,
-                        fiber_signal)
+                        vox_data, streamline, affine, evals, v2f, v2fn)
 
 
 class FiberFit(ReconstFit):
@@ -548,7 +547,7 @@ class FiberFit(ReconstFit):
     """
     def __init__(self, fiber_model, life_matrix, vox_coords, to_fit, beta,
                  weighted_signal, b0_signal, relative_signal, mean_sig,
-                 vox_data, streamline, affine, evals, v2f, v2fn, fiber_signal):
+                 vox_data, streamline, affine, evals, v2f, v2fn):
         """
         Parameters
         ----------
@@ -572,8 +571,7 @@ class FiberFit(ReconstFit):
         self.evals = evals
         self.v2f = v2f
         self.v2fn = v2fn
-        self.fiber_signal = fiber_signal
-
+ 
     def predict(self, gtab=None, S0=None):
         """
         Predict the signal
@@ -596,7 +594,7 @@ class FiberFit(ReconstFit):
         if gtab is None:
             _matrix = self.life_matrix
             gtab = self.model.gtab
-            v2f, v2fn, fiber_signal = self.v2f, self.v2fn, self.fiber_signal
+            v2f, v2fn = self.v2f, self.v2fn
             _model = self.model
         else:
             _model = FiberModel(gtab)
@@ -628,8 +626,8 @@ class FiberFit(ReconstFit):
             vidx = range(self.vox_coords.shape[0])
             for vv in vidx:
                 this_matrix, fidx = _model._compose_matrix([vv], v2f, v2fn,
-                                                            fiber_signal,
-                                                            return_fidx=True)
+                                                           self.streamline,
+                                                           return_fidx=True)
 
                 pred_weighted[vv] =\
                                opt.spdot(this_matrix, self.beta[:np.max(fidx)+1])
