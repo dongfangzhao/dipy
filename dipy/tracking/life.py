@@ -416,6 +416,7 @@ class FiberModel(ReconstModel):
                 if cache is not None:
                     fiber_signal = cache[f_idx]
                 else:
+                    s = streamlines[f_idx]
                     fiber_signal = SignalMaker.streamline_signal(s)
                 vox_fiber_sig = np.zeros(n_bvecs)
                 for node_idx in v2fn[f_idx][v_idx]:
