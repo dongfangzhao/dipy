@@ -911,11 +911,11 @@ def recursive_response(gtab, data, mask=None, sh_order=8, peak_thr=0.01,
     n = np.arange(0, sh_order + 1, 2)
     where_dwi = lazy_index(~gtab.b0s_mask)
     response_p = np.ones(len(n))
-    csd_model = ConstrainedSphericalDeconvModel(gtab, res_obj,
-                                                sh_order=sh_order)
 
     for num_it in range(1, iter):
         r_sh_all = np.zeros(len(n))
+        csd_model = ConstrainedSphericalDeconvModel(gtab, res_obj,
+                                                    sh_order=sh_order)
         
         csd_peaks = peaks_from_model(model=csd_model,
                                      data=data,
