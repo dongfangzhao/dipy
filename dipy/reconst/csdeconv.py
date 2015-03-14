@@ -79,7 +79,7 @@ class ConstrainedSphericalDeconvModel(SphHarmModel):
         Parameters
         ----------
         gtab : GradientTable
-        response : tuple
+        response : tuple or AxSymShResponse object
             A tuple with two elements. The first is the eigen-values as an (3,)
             ndarray and the second is the signal value for the response
             function without diffusion weighting.  This is to be able to
