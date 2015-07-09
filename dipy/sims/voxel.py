@@ -459,7 +459,6 @@ def kurtosis_element(D_comps, frac, ind_i, ind_j, ind_k, ind_l, DT=None,
            tractography procedures and novel biomarkers", NeuroImage (2015)
            111, 85-99.
     """
-
     if DT is None:
         DT = np.zeros((3, 3))
         for i in range(len(frac)):
@@ -485,7 +484,8 @@ def kurtosis_element(D_comps, frac, ind_i, ind_j, ind_k, ind_l, DT=None,
 
 def DKI_signal(gtab, dt, kt, S0=150, snr=None):
     r""" Simulated signal based on the diffusion and diffusion kurtosis
-    tensors. Simulations are preformed assuming the DKI model.
+    tensors of a single voxel. Simulations are preformed assuming the DKI
+    model.
 
     Parameters
     -----------
@@ -519,7 +519,7 @@ def DKI_signal(gtab, dt, kt, S0=150, snr=None):
     dt = np.array(dt)
     kt = np.array(kt)
 
-    A = dki_design_matrix(gtab)
+    A = design_matrix(gtab)
 
     # define vector of DKI parameters
     MD = (dt[0] + dt[2] + dt[5]) / 3
@@ -533,7 +533,7 @@ def DKI_signal(gtab, dt, kt, S0=150, snr=None):
     return S
 
 
-def dki_design_matrix(gtab):
+def design_matrix(gtab):
     r""" Constructs B design matrix for DKI
 
     Parameters
@@ -686,7 +686,6 @@ def multi_tensor_odf(odf_verts, mevals, angles, fractions):
     >>> odf = multi_tensor_odf(vertices, mevals, angles, [50, 50])
 
     '''
-
     mf = [f / 100. for f in fractions]
 
     sticks = _check_directions(angles)
