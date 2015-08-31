@@ -278,10 +278,10 @@ References:
 .. [TaxCMW2015] Tax CMW, Otte WM, Viergever MA, Dijkhuizen RM, Leemans A
                 (2014). REKINDLE: Robust extraction of kurtosis INDices with
                 linear estimation. Magnetic Resonance in Medicine 73(2):
-                794–808.
-.. [Jensen2005] Jensen JH, Helpern JA, Ramani A, Lu H, Kaczynski K (2005).
+                794-808.
+.. [Jensen2005] Jensen JH, Helpern JA, Ramani A, Lu H, Kaczynski K (2005)
                 Diffusional Kurtosis Imaging: The Quantification of
-                Non_Gaussian Water Diffusion by Means of Magnetic Resonance
+                Non-Gaussian Water Diffusion by Means of Magnetic Resonance
                 Imaging. Magnetic Resonance in Medicine 53: 1432-1440
 .. [Jensen2010] Jensen JH, Helpern JA (2010). MRI quantification of
                 non-Gaussian water diffusion by kurtosis analysis. NMR in
