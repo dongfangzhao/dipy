@@ -13,6 +13,7 @@ else:
 from os.path import join as pjoin
 from hashlib import md5
 from shutil import copyfileobj
+import tarfile
 
 import numpy as np
 import nibabel as nib
@@ -20,6 +21,7 @@ import nibabel as nib
 import zipfile
 from dipy.core.gradients import gradient_table
 from dipy.io.gradients import read_bvals_bvecs
+
 
 class FetcherError(Exception):
     pass
@@ -29,6 +31,7 @@ def _log(msg):
     print(msg)
 
 dipy_home = pjoin(os.path.expanduser('~'), '.dipy')
+
 
 def fetch_data(files, folder):
     """Downloads files to folder and checks their md5 checksums
@@ -172,9 +175,12 @@ def check_md5(filename, stored_md5):
     """
     computed_md5 = _get_file_md5(filename)
     if stored_md5 != computed_md5:
-        print ("MD5 checksum of filename", filename, "failed. Expected MD5 was", stored_md5,
-               "but computed MD5 was", computed_md5, '\n',
-               "Please check if the data has been downloaded correctly or if the upstream data has changed.")
+        msg = "MD5 checksum of filename " + filename + " failed.\n"
+        msg += "Expected MD5 was " + stored_md5 + "\n"
+        msg += "Current MD5 is " + computed_md5 + "\n"
+        msg += "Please check if the data has been downloaded "
+        msg += "correctly or if the upstream data has changed."
+        print (msg)
 
 
 def _get_file_data(fname, url):
@@ -192,9 +198,9 @@ def fetch_isbi2013_2shell():
     ubvec = url + '2shells-1500-2500-N64.bvec'
     folder = pjoin(dipy_home, 'isbi2013')
 
-    md5_list = ['42911a70f232321cf246315192d69c42', # data
-                '90e8cf66e0f4d9737a3b3c0da24df5ea', # bval
-                '4b7aa2757a1ccab140667b76e8075cb1'] # bvec
+    md5_list = ['42911a70f232321cf246315192d69c42',  # data
+                '90e8cf66e0f4d9737a3b3c0da24df5ea',  # bval
+                '4b7aa2757a1ccab140667b76e8075cb1']  # bvec
 
     url_list = [uraw, ubval, ubvec]
     fname_list = ['phantom64.nii.gz', 'phantom64.bval', 'phantom64.bvec']
@@ -253,9 +259,9 @@ def fetch_sherbrooke_3shell():
     ubvec = url + '3shells-1000-2000-3500-N193.bvec'
     folder = pjoin(dipy_home, 'sherbrooke_3shell')
 
-    md5_list = ['0b735e8f16695a37bfbd66aab136eb66', # data
-                'e9b9bb56252503ea49d31fb30a0ac637', # bval
-                '0c83f7e8b917cd677ad58a078658ebb7'] # bvec
+    md5_list = ['0b735e8f16695a37bfbd66aab136eb66',  # data
+                'e9b9bb56252503ea49d31fb30a0ac637',  # bval
+                '0c83f7e8b917cd677ad58a078658ebb7']  # bvec
 
     url_list = [uraw, ubval, ubvec]
     fname_list = ['HARDI193.nii.gz', 'HARDI193.bval', 'HARDI193.bvec']
@@ -340,9 +346,9 @@ def fetch_stanford_hardi():
     ubvec = url + 'dwi.bvecs'
     folder = pjoin(dipy_home, 'stanford_hardi')
 
-    md5_list = ['0b18513b46132b4d1051ed3364f2acbc', # data
-                '4e08ee9e2b1d2ec3fddb68c70ae23c36', # bval
-                '4c63a586f29afc6a48a5809524a76cb4'] # bvec
+    md5_list = ['0b18513b46132b4d1051ed3364f2acbc',  # data
+                '4e08ee9e2b1d2ec3fddb68c70ae23c36',  # bval
+                '4c63a586f29afc6a48a5809524a76cb4']  # bvec
 
     url_list = [uraw, ubval, ubvec]
     fname_list = ['HARDI150.nii.gz', 'HARDI150.bval', 'HARDI150.bvec']
@@ -444,10 +450,10 @@ def fetch_taiwan_ntu_dsi():
     ureadme = 'http://dl.dropbox.com/u/2481924/license_taiwan_ntu_dsi.txt'
     folder = pjoin(dipy_home, 'taiwan_ntu_dsi')
 
-    md5_list = ['950408c0980a7154cb188666a885a91f', # data
-                '602e5cb5fad2e7163e8025011d8a6755', # bval
-                'a95eb1be44748c20214dc7aa654f9e6b', # bvec
-                '7fa1d5e272533e832cc7453eeba23f44'] # license
+    md5_list = ['950408c0980a7154cb188666a885a91f',  # data
+                '602e5cb5fad2e7163e8025011d8a6755',  # bval
+                'a95eb1be44748c20214dc7aa654f9e6b',  # bvec
+                '7fa1d5e272533e832cc7453eeba23f44']  # license
 
     url_list = [uraw, ubval, ubvec, ureadme]
     fname_list = ['DSI203.nii.gz', 'DSI203.bval', 'DSI203.bvec', 'DSI203_license.txt']
@@ -512,8 +518,8 @@ def fetch_syn_data():
 
     folder = pjoin(dipy_home, 'syn_test')
 
-    md5_list = ['701bda02bb769655c7d4a9b1df2b73a6', # t1
-                'e4b741f0c77b6039e67abb2885c97a78'] # b0
+    md5_list = ['701bda02bb769655c7d4a9b1df2b73a6',  # t1
+                'e4b741f0c77b6039e67abb2885c97a78']  # b0
 
     url_list = [t1, b0]
     fname_list = ['t1.nii.gz', 'b0.nii.gz']
@@ -591,6 +597,125 @@ mni_notes = \
 """
 
 
+def fetch_viz_icons():
+    """ Download icons for visualization
+    """
+    url = 'https://dl.dropboxusercontent.com/u/2481924/'
+    fname = 'icomoon.tar.gz'
+    icomoon = url + fname
+    folder = pjoin(dipy_home, 'icons')
+
+    url_list = [icomoon]
+    md5_list = ['94a07cba06b4136b6687396426f1e380']
+    fname_list = [fname]
+
+    if not os.path.exists(folder):
+        print('Creating new directory %s' % folder)
+        os.makedirs(folder)
+        print('Downloading icons ...')
+        for i in range(len(md5_list)):
+            _get_file_data(pjoin(folder, fname_list[i]), url_list[i])
+            new_path = pjoin(folder, fname_list[i])
+            check_md5(new_path, md5_list[i])
+            ar = tarfile.open(new_path)
+            ar.extractall(path=folder)
+            ar.close()
+
+        print('Done.')
+        print('Files copied in folder %s' % folder)
+    else:
+        msg = 'Dataset is already in place. If you want to fetch it again, '
+        msg += 'please first remove the folder %s '
+        print(msg % folder)
+
+
+def read_viz_icons(style='icomoon', fname='infinity.png'):
+    """ Read specific icon from specific style
+
+    Parameters
+    ----------
+    style: str
+        Current icon style. Default is icomoon.
+    fname: str
+        Filename of icon. This should be found in folder HOME/.dipy/style/.
+        Default is infinity.png.
+
+    Returns
+    --------
+    path: str
+        Complete path of icon.
+
+    """
+
+    folder = pjoin(dipy_home, 'icons', style)
+    return pjoin(folder, fname)
+
+
+def fetch_bundles_2_subjects():
+    """ Download 2 subjects with their bundles
+    """
+    url = 'https://dl.dropboxusercontent.com/u/2481924/'
+    fname = 'bundles_2_subjects.tar.gz'
+    url = url + fname
+    folder = pjoin(dipy_home, 'exp_bundles_and_maps')
+
+    url_list = [url]
+    md5_list = ['97756fbef11ce2df31f1bedf1fc7aac7']
+    fname_list = [fname]
+
+    if not os.path.exists(folder):
+        print('Creating new directory %s' % folder)
+        os.makedirs(folder)
+        print('Downloading dataset ...')
+        for i in range(len(md5_list)):
+            _get_file_data(pjoin(folder, fname_list[i]), url_list[i])
+            new_path = pjoin(folder, fname_list[i])
+            check_md5(new_path, md5_list[i])
+            ar = tarfile.open(new_path)
+            ar.extractall(path=folder)
+            ar.close()
+
+        print('Done.')
+        print('Files copied in folder %s' % folder)
+    else:
+        msg = 'Dataset is already in place. If you want to fetch it again, '
+        msg += 'please first remove the folder %s '
+        print(msg % folder)
+
+
+def read_bundles_2_subjects(subj_id='subj_1', metrics=['fa'],
+                            bundles=['af.left', 'cst.right', 'cc_1']):
+
+    dname = pjoin(dipy_home, 'exp_bundles_and_maps', 'bundles_2_subjects')
+
+    from nibabel import trackvis as tv
+
+    res = {}
+
+    if 't1' in metrics:
+        img = nib.load(pjoin(dname, subj_id, 't1_warped.nii.gz'))
+        data = img.get_data()
+        affine = img.get_affine()
+        res['t1'] = data
+
+    if 'fa' in metrics:
+        img_fa = nib.load(pjoin(dname, subj_id, 'fa_1x1x1.nii.gz'))
+        fa = img_fa.get_data()
+        affine = img_fa.get_affine()
+        res['fa'] = fa
+
+    res['affine'] = affine
+
+    for bun in bundles:
+
+        streams, hdr = tv.read(pjoin(dname, subj_id,
+                                     'bundles', 'bundles_' + bun + '.trk'),
+                               points_space="rasmm")
+        streamlines = [s[0] for s in streams]
+        res[bun] = streamlines
+
+    return res
+
 
 def fetch_mni_template():
     """
@@ -636,9 +761,10 @@ def read_mni_template(contrast="T2"):
     Get both files in this order:
     >>> T1_nifti, T2_nifti = read_mni_template(["T1", "T2"]) # doctest: +SKIP
     """
+
     files, folder = fetch_mni_template()
-    file_dict = {"T1":pjoin(folder, 'mni_icbm152_t1_tal_nlin_asym_09a.nii'),
-                 "T2":pjoin(folder, 'mni_icbm152_t2_tal_nlin_asym_09a.nii')}
+    file_dict = {"T1": pjoin(folder, 'mni_icbm152_t1_tal_nlin_asym_09a.nii'),
+                 "T2": pjoin(folder, 'mni_icbm152_t2_tal_nlin_asym_09a.nii')}
     if isinstance(contrast, str):
         return nib.load(file_dict[contrast])
     else:
