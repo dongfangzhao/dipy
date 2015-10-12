@@ -16,20 +16,20 @@ from dipy.viz import actor, window, widget
 
 """
 In ``window`` we have all the objects that connect what needs to be rendered
-to the display or the disk e.g. for saving screenshots. So, there you will find
+to the display or the disk e.g., for saving screenshots. So, there you will find
 key objects and functions like the ``Renderer`` class which holds and provides
 access to all the actors and the ``show`` function which displays what is
 in the renderer on a window. Also, this module provides access to functions
 for opening/saving dialogs and printing screenshots (see ``snapshot``).
 
-In the ``actor`` module we can find all the different primitives e.g.
-streamtubes, lines, image slices etc.
+In the ``actor`` module we can find all the different primitives e.g.,
+streamtubes, lines, image slices, etc.
 
 In the ``widget`` we have some other objects which allow to add buttons
 and sliders and these interact both with windows and actors. Because of this
 they need input from the operating system so they can process events.
 
-So, let's get started. In this tutorial, we will visualize some bundles
+Let's get started. In this tutorial, we will visualize some bundles
 together with FA or T1. We will be able to change the slices using
 a ``slider`` widget.
 
@@ -41,8 +41,8 @@ from dipy.data.fetcher import fetch_bundles_2_subjects, read_bundles_2_subjects
 fetch_bundles_2_subjects()
 
 """
-The following function outputs a dictionary with the required bundles e.g. af
-left and maps, e.g. FA for a specific subject.
+The following function outputs a dictionary with the required bundles e.g., af
+left (left arcuate fasciculus) and maps, e.g., FA for a specific subject.
 """
 
 res = read_bundles_2_subjects('subj_1', ['t1', 'fa'],
@@ -90,7 +90,7 @@ else:
     image_actor = actor.slicer(data, affine)
 
 """
-For fun let's change also the opacity of the slicer
+We can also change also the opacity of the slicer
 """
 
 slicer_opacity = .6
@@ -137,14 +137,10 @@ slider = widget.slider(show_m.iren, show_m.ren,
                        selected_color=(0.86, 0.33, 1.))
 
 """
-Then, we can render all the widget and everything else in the screen and
+Then, we can render all the widgets and everything else in the screen and
 start the interaction using ``show_m.start()``.
-"""
 
-# show_m.render()
-# show_m.start()
 
-"""
 However, if you change the window size, the slider will not update its position
 properly. The solution to this issue is to update the position of the slider
 using its ``place`` method every time the window size changes.
@@ -164,7 +160,7 @@ def win_callback(obj, event):
 show_m.initialize()
 
 """
-Finally, please uncomment the following lines so that you can interact with
+Finally, please uncomment the following 3 lines so that you can interact with
 the available 3D and 2D objects.
 """
 

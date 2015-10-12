@@ -188,6 +188,7 @@ def test_order_transparent():
     # green in front
     renderer.elevation(90)
     renderer.reset_clipping_range()
+
     arr = window.snapshot(renderer)
 
     # therefore the green component must have a higher value (in RGB terms)
@@ -196,6 +197,7 @@ def test_order_transparent():
     # red in front
     renderer.elevation(-180)
     renderer.reset_clipping_range()
+
     arr = window.snapshot(renderer)
 
     # therefore the red component must have a higher value (in RGB terms)

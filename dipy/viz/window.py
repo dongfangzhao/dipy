@@ -680,6 +680,7 @@ def snapshot(ren, fname=None, size=(300, 300)):
     render_window.SetOffScreenRendering(1)
     render_window.AddRenderer(ren)
     render_window.SetSize(width, height)
+
     render_window.Render()
 
     window_to_image_filter = vtk.vtkWindowToImageFilter()

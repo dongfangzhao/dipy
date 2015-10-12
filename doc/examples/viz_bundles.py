@@ -29,15 +29,15 @@ Store grid to world transformation matrix.
 affine = dix['affine']
 
 """
-Store the cingulum bundle. A bundle is a set of streamlines.
+Store the cingulum bundle. A bundle is a list of streamlines.
 """
 
 bundle = dix['cg.left']
 
 """
 It happened that this bundle is in world coordinates and therefore we need to
-transform in native image coordinates so that it is in the same coordinate
-space as the ``fa``.
+transform it into native image coordinates so that it is in the same coordinate
+space as the ``fa`` image.
 """
 
 bundle_native = transform_streamlines(bundle, np.linalg.inv(affine))
@@ -59,6 +59,7 @@ renderer.set_camera(position=(-176.42, 118.52, 128.20),
 
 renderer.add(stream_actor)
 
+# Uncomment the line below to show to display the window
 # window.show(renderer, size=(600, 600), reset_camera=False)
 window.record(renderer, out_path='bundle1.png', size=(600, 600))
 
