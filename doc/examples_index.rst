@@ -165,6 +165,8 @@ Streamline Clustering
 
 - :ref:`example_segment_quickbundles`
 - :ref:`example_segment_extending_clustering_framework`
+- :ref:`example_segment_clustering_features`
+- :ref:`example_segment_clustering_metrics`
 
 Brain Segmentation
 ~~~~~~~~~~~~~~~~~~
@@ -198,7 +200,7 @@ Visualization
 - :ref:`example_viz_advanced`
 - :ref:`example_viz_slice`
 - :ref:`example_viz_bundles`
-- :ref:`example_viz_hud`
+- :ref:`example_viz_widgets`
 
 .. In order to build the examples, you'll need (on Debian)
     sudo apt-get install python-tables python-matplotib python-vtk
