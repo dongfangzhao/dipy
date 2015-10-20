@@ -53,8 +53,8 @@ before_install:
           sudo apt-get install -y python-vtk;
           sudo apt-get install -y xvfb;
           sudo apt-get install -y python-tk;
-          sudo apt-get build-dep pillow
-          sudo apt-get install pillow
+          sudo apt-get build-dep pillow;
+          sudo apt-get install pillow;
       fi
 install:
     - python setup.py install
