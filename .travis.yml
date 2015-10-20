@@ -53,7 +53,6 @@ before_install:
           sudo apt-get install -y python-vtk;
           sudo apt-get install -y xvfb;
           sudo apt-get install -y python-tk;
-          sudo apt-get build-dep pillow;
           sudo apt-get install python-imaging;
       fi
 install:
