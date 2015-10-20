@@ -69,7 +69,7 @@ script:
       COVER_ARGS="--with-coverage --cover-package dipy";
       fi
     - if [ "${VTK}" == "1" ]; then
-      VIRT_BUFF="xvfb-run +extension GLX";
+      VIRT_BUFF="xvfb-run";
       fi
     - $VIRT_BUFF nosetests --with-doctest --verbose $COVER_ARGS dipy
 after_success:
