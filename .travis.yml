@@ -37,6 +37,7 @@ matrix:
       env:
         - VTK=1
         - VENV_ARGS="--system-site-packages --python=/usr/bin/python2.7"
+        - LIBGL_ALWAYS_INDIRECT=y
 before_install:
     - source tools/travis_tools.sh
     - virtualenv $VENV_ARGS venv
