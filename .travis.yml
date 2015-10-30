@@ -38,7 +38,7 @@ matrix:
         - VTK=1
         - LIBGL_ALWAYS_INDIRECT=y
         - VENV_ARGS="--system-site-packages --python=/usr/bin/python2.7"
-		- IS_TRAVIS=true
+        - IS_TRAVIS=true
 before_install:
     - source tools/travis_tools.sh
     - virtualenv $VENV_ARGS venv
