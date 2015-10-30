@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.ndimage import affine_transform
+from dipy.align.imaffine import AffineMap
 
 
 def reslice(data, affine, zooms, new_zooms, order=1, mode='constant', cval=0):
@@ -77,3 +78,27 @@ def reslice(data, affine, zooms, new_zooms, order=1, mode='constant', cval=0):
     Rx[:3, :3] = R
     affine2 = np.dot(affine, Rx)
     return data2, affine2
+
+
+def resample_volume(moving, static):
+    """
+    Resample a nifti image into the space of another nifti image
+
+    Parameters
+    ----------
+    moving : Nifti1Image
+        The 'source' image.
+    static : Nifti1Image
+        The 'target' image.
+
+    Returns
+    -------
+    resampled_img : Nifti1Image
+       The source data in the target space, with the target affine
+    """
+    affine_map = AffineMap(np.eye(4),
+                           static.shape, static.affine,
+                           moving.shape, moving.affine)
+
+    resampled = affine_map.transform(moving.get_data())
+    return nib.Nifti1Image(resampled, static.get_affine())
