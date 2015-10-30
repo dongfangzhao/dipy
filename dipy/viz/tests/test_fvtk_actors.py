@@ -130,6 +130,7 @@ def test_streamtube_and_line_actors():
     npt.assert_equal(report.colors_found, [True, True])
 
 
+@npt.dec.skipif(is_travis)
 @npt.dec.skipif(not run_test)
 def test_bundle_maps():
 
