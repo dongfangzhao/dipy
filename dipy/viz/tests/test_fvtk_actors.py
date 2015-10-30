@@ -84,6 +84,7 @@ def test_slicer():
     npt.assert_equal(report.objects, 1)
 
 
+@npt.dec.skipif(is_travis)
 @npt.dec.skipif(not run_test)
 def test_streamtube_and_line_actors():
 
