@@ -38,6 +38,7 @@ matrix:
         - VTK=1
         - LIBGL_ALWAYS_INDIRECT=y
         - VENV_ARGS="--system-site-packages --python=/usr/bin/python2.7"
+		- IS_TRAVIS=true
 before_install:
     - source tools/travis_tools.sh
     - virtualenv $VENV_ARGS venv
@@ -51,7 +52,6 @@ before_install:
       fi
     - if [ "${VTK}" == "1" ]; then
           sudo apt-get update;
-          sudo apt-get install libgl1-mesa-dev;
           sudo apt-get install -y python-vtk;
           sudo apt-get install -y xvfb;
           sudo apt-get install -y python-tk;

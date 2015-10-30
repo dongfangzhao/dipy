@@ -9,8 +9,10 @@ from dipy.tracking.streamline import center_streamlines, transform_streamlines
 from dipy.align.tests.test_streamlinear import fornix_streamlines
 
 run_test = actor.have_vtk and actor.have_vtk_colors and window.have_imread
+is_travis = os.environ.get('IS_TRAVIS', False)
 
 
+@npt.dec.skipif(is_travis)
 @npt.dec.skipif(not run_test)
 def test_slicer():
 
