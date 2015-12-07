@@ -4,11 +4,6 @@ import os
 import sys
 import contextlib
 
-if sys.version_info[0] < 3:
-    from urllib2 import urlopen
-else:
-    from urllib.request import urlopen
-
 from os.path import join as pjoin
 from hashlib import md5
 from shutil import copyfileobj
@@ -20,6 +15,11 @@ import tarfile
 import zipfile
 from dipy.core.gradients import gradient_table
 from dipy.io.gradients import read_bvals_bvecs
+
+if sys.version_info[0] < 3:
+    from urllib2 import urlopen
+else:
+    from urllib.request import urlopen
 
 # Set a user-writeable file-system location to put files:
 dipy_home = pjoin(os.path.expanduser('~'), '.dipy')

@@ -35,7 +35,8 @@ def test_make_fetcher():
         print(symmetric362)
         sphere_fetcher = fetcher._make_fetcher("sphere_fetcher",
                                                tmpdir, testfile_url,
-                                               [op.split(symmetric362)[-1]],
+                                               [op.sep +
+                                                op.split(symmetric362)[-1]],
                                                ["sphere_name"],
                                                md5_list=[stored_md5])
 
