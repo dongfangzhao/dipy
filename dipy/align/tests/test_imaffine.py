@@ -207,14 +207,14 @@ def test_affreg_all_transforms():
                                              'L-BFGS-B',
                                              None,
                                              options=None)
-        x0 = transform.get_identity_parameters()
-        affine_map = affreg.optimize(static, moving, transform, x0,
+        x0 = trans.get_identity_parameters()
+        affine_map = affreg.optimize(static, moving, trans, x0,
                                      static_g2w, moving_g2w)
         transformed = affine_map.transform(moving)
         # Sum of absolute differences
         end_sad = np.abs(static - transformed).sum()
         reduction = 1 - end_sad / start_sad
-        print("%s>>%f"%(ttype, reduction))
+        print("%s>>%f" % (ttype, reduction))
         assert(reduction > 0.9)
 
     # Verify that exception is raised if level_iters is empty
