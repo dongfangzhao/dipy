@@ -409,8 +409,14 @@ class SparseFascicleModel(ReconstModel, Cache):
 
         # Fitting is done on the relative signal (S/S0):
         flat_S0 = np.mean(data_in_mask[..., self.gtab.b0s_mask], -1)
-        flat_S = (data_in_mask[..., ~self.gtab.b0s_mask] /
-                  flat_S0[..., None])
+        nz_fs0 = flat_S0 > 0
+        nz_fs0_idx = np.where(nz_fs0)
+        z_fs0_idx = np.where(~nz_fs0)
+        flat_S = np.empty(data_in_mask[..., ~self.gtab.b0s_mask].shape)
+        flat_S[nz_fs0_idx] = (
+                data_in_mask[nz_fs0_idx][..., ~self.gtab.b0s_mask] /
+                flat_S0[nz_fs0_idx, None])
+        flat_S[z_fs0_idx] = 0
         isotropic = self.isotropic(self.gtab).fit(data_in_mask)
         flat_params = np.zeros((data_in_mask.shape[0],
                                 self.design_matrix.shape[-1]))
@@ -462,7 +468,7 @@ class SparseFascicleFit(ReconstFit):
 
     def odf(self, sphere):
         """
-        The orientation distribution function of the SFM
+        The orientation distribution function of the SFM.
 
         Parameters
         ----------
@@ -487,7 +493,7 @@ class SparseFascicleFit(ReconstFit):
 
     def predict(self, gtab=None, response=None, S0=None):
         """
-        Predict the signal based on the SFM parameters
+        Predict the signal based on the SFM parameters.
 
         Parameters
         ----------
