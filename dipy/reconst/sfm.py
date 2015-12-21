@@ -52,14 +52,17 @@ if not has_sklearn:
 # First, a helper function to derive the fit signal for these models:
 def _to_fit_iso(data, gtab):
     data_no_b0 = data[..., ~gtab.b0s_mask]
-    nzb0 = data_no_b0 > 0
-    nzb0_idx = np.where(nzb0)
-    zb0_idx = np.where(~nzb0)
+    nz = data_no_b0 > 0
+    nz_idx = np.where(nz)
+    z_idx = np.where(~nz)
     if np.sum(gtab.b0s_mask) > 0:
         s0 = np.mean(data[..., gtab.b0s_mask], -1)
-        to_fit = np.empty(data_no_b0.shape)
-        to_fit[nzb0_idx] = data_no_b0[nzb0_idx] / s0[nzb0_idx[0]]
-        to_fit[zb0_idx] = 0
+        to_fit = np.zeros(data_no_b0.shape)
+        to_fit[nz_idx] = data_no_b0[nz_idx]
+        nzs0 = s0 > 0
+        nzs0_idx = np.where(nzs0)
+        zs0_idx = np.where(~nzs0)
+        to_fit[nz_idx] = to_fit[nz_idx] / s0[nz_idx[0]]
     else:
         to_fit = data_no_b0
     return to_fit
@@ -412,11 +415,10 @@ class SparseFascicleModel(ReconstModel, Cache):
         nz_fs0 = flat_S0 > 0
         nz_fs0_idx = np.where(nz_fs0)
         z_fs0_idx = np.where(~nz_fs0)
-        flat_S = np.empty(data_in_mask[..., ~self.gtab.b0s_mask].shape)
+        flat_S = np.zeros(data_in_mask[..., ~self.gtab.b0s_mask].shape)
         flat_S[nz_fs0_idx] = (
                 data_in_mask[nz_fs0_idx][..., ~self.gtab.b0s_mask] /
                 flat_S0[nz_fs0_idx, None])
-        flat_S[z_fs0_idx] = 0
         isotropic = self.isotropic(self.gtab).fit(data_in_mask)
         flat_params = np.zeros((data_in_mask.shape[0],
                                 self.design_matrix.shape[-1]))
