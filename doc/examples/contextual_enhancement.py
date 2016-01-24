@@ -8,11 +8,11 @@ This demo presents an example of crossing-preserving contextual enhancement of
 FOD/ODF fields [Meesters2016_ISMRM_], implementing the contextual PDE framework
 of [Portegies2015_PLoSOne]_ for processing HARDI data. The aim is to enhance the
 alignment of elongated structures in the data such that crossing/junctions are
-maintained while reducing noise and small incoherent structures. This is achieved
-via a hypo-elliptic 2nd order PDE in the domain of coupled positions and
-orientations :math:`\mathbb{R}^3 \rtimes S^2`. This domain carries a non-flat
-geometrical differential structure that allows including a notion of alignment
-between neighboring points.
+maintained while reducing noise and small incoherent structures. This is
+achieved via a hypo-elliptic 2nd order PDE in the domain of coupled positions
+and orientations :math:`\mathbb{R}^3 \rtimes S^2`. This domain carries a
+non-flat geometrical differential structure that allows including a notion of
+alignment between neighboring points.
 
 Let :math:`({\bf y},{\bf n}) \in \mathbb{R}^3\rtimes S^2` where
 :math:`{\bf y} \in \mathbb{R}^{3}` denotes the spatial part, and
@@ -52,20 +52,20 @@ Note that the shift-twist convolution differs from a Euclidean convolution and
 takes into account the non-flat structure of the space :math:`\mathbb{R}^3\rtimes S^2`.
 
 The kernel :math:`P_t` has a stochastic interpretation [DuitsAndFranken_JMIV]_.
-It can be seen as the limiting distribution obtained by accumulating random walks
-of particles in the position/orientation domain, where in each step the particles
-can (randomly) move forward/backward along their current orientation, and (randomly)
-change their orientation.  This is an extension to the 3D case of the process
-for contour enhancement of 2D images.
+It can be seen as the limiting distribution obtained by accumulating random
+walks of particles in the position/orientation domain, where in each step the
+particles can (randomly) move forward/backward along their current orientation,
+and (randomly) change their orientation.  This is an extension to the 3D case of
+the process for contour enhancement of 2D images.
 
 .. figure:: _static/stochastic_process.png
+   :scale: 50 %
    :align: center
 
-   The random motion of particles (a) and it's corresponding probability map (b)
-    in 2D. The 3D kernel is shown on the right. Adapted from [Portegies2015_PLoSOne]_.
+   The random motion of particles (a) and it's corresponding probability map (b) in 2D. The 3D kernel is shown on the right. Adapted from [Portegies2015_PLoSOne]_.
 
-In practice, as the exact analytical formulas for the kernel :math:`P_t` are unknown,
-we use the approximation given in [Portegies2015_SSVM]_.
+In practice, as the exact analytical formulas for the kernel :math:`P_t`
+are unknown, we use the approximation given in [Portegies2015_SSVM]_.
 
 """
 
@@ -95,7 +95,8 @@ data_small = data[25:40, 65:80, 35:42]
 data_noisy_small = data_noisy[25:40, 65:80, 35:42]
 
 """
-Perform a model fitting, in this case Constrained Spherical Deconvolution is used.
+Fit an initial model to the data, in this case Constrained Spherical
+Deconvolution is used.
 """
 
 # Perform CSD on the original data
@@ -113,11 +114,13 @@ csd_fit_noisy = csd_model_noisy.fit(data_noisy_small)
 csd_shm_noisy = csd_fit_noisy.shm_coeff
 
 """
-Inspired by [Paulo_Eurographics_], a lookup-table is created, containing rotated
-versions of the kernel :math:`P_t` sampled over a discrete set of orientations.
-In order to ensure rotationally invariant processing, the discrete orientations
-are required to be equally distributed over a sphere. By default, a sphere with
-100 directions is used.
+
+Inspired by [RodriguesEurographics_], a lookup-table is created, containing
+rotated versions of the kernel :math:`P_t` sampled over a discrete set of
+orientations. In order to ensure rotationally invariant processing, the discrete
+orientations are required to be equally distributed over a sphere. Per default,
+a sphere with 100 directions is used.
+
 """
 
 from dipy.denoise.enhancement_kernel import EnhancementKernel
@@ -191,10 +194,10 @@ The end results are visualized. It can be observed that the end result after
 diffusion and sharpening is closer to the original noiseless dataset.
 """
 
-csd_sf_orig_slice = csd_sf_orig[:,:,[3],:]
-csd_sf_noisy_slice = csd_sf_noisy[:,:,[3],:]
-csd_sf_enh_slice = csd_sf_enh[:,:,[3],:]
-csd_sf_enh_sharp_slice = csd_sf_enh_sharp[:,:,[3],:]
+csd_sf_orig_slice = csd_sf_orig[:, :, [3], :]
+csd_sf_noisy_slice = csd_sf_noisy[:, :, [3], :]
+csd_sf_enh_slice = csd_sf_enh[:, :, [3], :]
+csd_sf_enh_sharp_slice = csd_sf_enh_sharp[:, :, [3], :]
 
 ren = fvtk.ren()
 
@@ -241,9 +244,10 @@ fvtk.record(ren, out_path='enhancements.png', size=(900, 900))
 .. figure:: enhancements.png
    :align: center
 
-   The results after enhancements. Top-left: original noiseless data. Bottom-left:
-   original data with added Rician noise (SNR=2). Bottom-right: After enhancement
-   of noisy data. Top-right: After enhancement and sharpening of noisy data.
+   The results after enhancements. Top-left: original noiseless data.
+   Bottom-left: original data with added Rician noise (SNR=2). Bottom-right:
+   After enhancement of noisy data. Top-right: After enhancement and sharpening
+   of noisy data.
 
 References
 ~~~~~~~~~~
@@ -264,8 +268,7 @@ References
 .. [DuitsAndFranken_JMIV] R. Duits and E. Franken (2011) Morphological and
                           Linear Scale Spaces for Fiber Enhancement in DWI-MRI.
                           J Math Imaging Vis, 46(3):326-368.
-.. [Paulo_Eurographics] P. Rodrigues, R. Duits, B. Romeny, A. Vilanova (2010).
-                        Accelerated Diffusion Operators for Enhancing DW-MRI.
-                        Eurographics Workshop on Visual Computing for Biology and
-                        Medicine. The Eurographics Association.
+
+.. [RodirguesEurographics] P. Rodrigues, R. Duits, B. Romeny, A. Vilanova
+                           (2010). Accelerated Diffusion Operators for Enhancing DW-MRI. Eurographics Workshop on Visual Computing for Biology and Medicine. The Eurographics Association.
 """
