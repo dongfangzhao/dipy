@@ -4,11 +4,12 @@ from __future__ import division, print_function, absolute_import
 import warnings
 import functools
 import numpy as np
-from scipy.optimize import leastsq, minimize
+from scipy.optimize import minimize, leastsq
 
 from dipy.core.gradients import gradient_table
 from dipy.reconst.base import ReconstModel
 from dipy.reconst.dti import _min_positive_signal
+from dipy.reconst.dti import TensorModel, mean_diffusivity
 
 
 def ivim_function(params, bvals):
@@ -29,7 +30,7 @@ def ivim_function(params, bvals):
 def _ivim_error(params, bvals, signal):
     """Error function to be used in fitting the model
     """
-    return np.sum((signal - ivim_function(params, bvals)) ** 2)
+    return (signal - ivim_function(params, bvals))**2
 
 
 class IvimModel(ReconstModel):
@@ -55,14 +56,16 @@ class IvimModel(ReconstModel):
                    MR imaging." Radiology 265.3 (2012): 874-881.
         """
         ReconstModel.__init__(self, gtab)
-
+        self.split_b = split_b
         self.min_signal = min_signal
         if self.min_signal is not None and self.min_signal <= 0:
             e_s = "The `min_signal` key-word argument needs to be strictly"
             e_s += " positive."
             raise ValueError(e_s)
 
-    def fit(self, data, mask=None, x0=None, fit_method="one_stage"):
+    def fit(self, data, mask=None, x0=None, fit_method="one_stage", routine="leastsq",
+            jac=False, bounds=((0, 1.), (0, 1.), (0, 1.), (0, 1.)), tol=1e-25, algorithm='L-BFGS-B',
+            gtol=1e-25, ftol=1e-25, eps=1e-15):
         """ Fit method of the Ivim model class
 
         Parameters
@@ -78,7 +81,20 @@ class IvimModel(ReconstModel):
             These guess parameters are taken from the Federau paper
             Dimension can either be 1 or (N, 4) where N is the number of
             voxels in the data.
+        fit_method: str
+            Use one-stage fitting or two-stage fitting.
+        jac : Boolean
+            Use the Jacobian
+        bounds : tuple
+            Bounds for the various parameters
+        tol : float
+            tolerance for convergence
+        method : str
+            Fitting algorithm to use from scipy.optimize
 
+        Returns
+        -------
+        IvimFit object
         """
         if mask is None:
             # Flatten it to 2D either way:
@@ -98,19 +114,23 @@ class IvimModel(ReconstModel):
         # Generate guess_parameters for all voxels
         if x0 is None:
             x0 = np.ones(
-                (data.shape[0], 4)) * [1.0, 0.10, 0.001, 0.0009]
+                (data.shape[:-1] + (4,))) * [1.0, 0.10, 0.001, 0.0009]
         else:
             if x0.shape != (data.shape[0], 4):
                 raise ValueError(
                     "Guess params should be of shape (num_voxels,4)")
-
         data_in_mask = np.maximum(data_in_mask, min_signal)
 
         if fit_method == "one_stage":
-            params_in_mask = one_stage(data_in_mask, self.gtab,
-                                           x0)
+            params_in_mask = one_stage(data_in_mask, self.gtab, x0,
+                                       jac, bounds, tol,
+                                       routine,
+                                       algorithm, gtol, ftol, eps)
         elif fit_method == "two_stage":
-            pass
+            params_in_mask = two_stage(data_in_mask, self.gtab, x0,
+                                       self.split_b, jac, bounds, tol,
+                                       routine,
+                                       algorithm, gtol, ftol, eps)
         else:
             raise ValueError("""Fit method must be either
                              'one_stage' or 'two_stage'""")
@@ -151,9 +171,75 @@ class IvimFit(object):
         return self.model_params.shape[:-1]
 
 
-def one_stage(data, gtab, x0, jac=False, bounds=None):
+def one_stage(data, gtab, x0, jac, bounds, tol, routine, algorithm,
+              gtol, ftol, eps):
     """
-    Fit the ivim params using least-squares.
+    Fit the ivim params using minimize
+
+    Parameters
+    ----------
+    data : array ([X, Y, Z, ...], g)
+        Data or response variables holding the data. Note that the last
+        dimension should contain the data. It makes no copies of data.
+
+    jac : bool
+        Use the Jacobian? Default: False
+
+    Returns
+    -------
+    ivim_params: the S0, f, D_star, D value for each voxel.
+
+    """
+    flat_data = data.reshape((-1, data.shape[-1]))
+    flat_x0 = x0.reshape(-1, x0.shape[-1])
+    # Flatten for the iteration over voxels:
+    bvals = gtab.bvals
+    ivim_params = np.empty((flat_data.shape[0], 4))
+
+    if routine == 'minimize':
+        result = _minimize(flat_data, bvals, flat_x0, ivim_params,
+                           bounds, tol, jac, algorithm, gtol, ftol, eps)
+    elif routine == "leastsq":
+        result = _leastsq(flat_data, bvals, flat_x0, ivim_params)
+    ivim_params.shape = data.shape[:-1] + (4,)
+    return ivim_params
+
+
+def _minimize(flat_data, bvals, flat_x0, ivim_params,
+              bounds, tol, jac, algorithm, gtol, ftol, eps):
+    """Use minimize for finding ivim_params"""
+    sum_sq = lambda params, bvals, signal: np.sum(
+        _ivim_error(params, bvals, signal))
+
+    result = []
+    for vox in range(flat_data.shape[0]):
+        res = minimize(sum_sq,
+                       flat_x0[vox],
+                       args=(bvals, flat_data[vox]), bounds=bounds,
+                       tol=tol, method=algorithm, jac=jac,
+                       options={'gtol': gtol, 'ftol': ftol, 'eps': eps})
+        ivim_params[vox, :4] = res.x
+        result += res
+    return result
+
+
+def _leastsq(flat_data, bvals, flat_x0, ivim_params):
+    """Use minimize for finding ivim_params"""
+    result = []
+    for vox in range(flat_data.shape[0]):
+        res = leastsq(_ivim_error,
+                      flat_x0[vox],
+                      args=(bvals, flat_data[vox]))
+        ivim_params[vox, :4] = res[0]
+        result += res
+    return result
+
+
+def two_stage(data, gtab, x0,
+              split_b, jac, bounds, tol,
+              routine, algorithm, gtol, ftol, eps):
+    """
+    Fit the ivim params using a two stage fit
 
     Parameters
     ----------
@@ -171,13 +257,16 @@ def one_stage(data, gtab, x0, jac=False, bounds=None):
     """
     flat_data = data.reshape((-1, data.shape[-1]))
     # Flatten for the iteration over voxels:
-    bvals = gtab.bvals
-    ivim_params = np.empty((flat_data.shape[0], 4))
-    for vox in range(flat_data.shape[0]):
-        res = minimize(_ivim_error,
-                      x0[vox],
-                      args=(bvals, flat_data[vox]))
-        ivim_params[vox, :4] = res.x
+    bvals_ge_split = gtab.bvals[gtab.bvals > split_b]
+    bvecs_ge_split = gtab.bvecs[gtab.bvals > split_b]
+    gtab_ge_split = gradient_table(bvals_ge_split, bvecs_ge_split.T)
 
-    ivim_params.shape = data.shape[:-1] + (4,)
-    return ivim_params
+    tensor_model = TensorModel(gtab_ge_split)
+    tenfit = tensor_model.fit(data[..., gtab.bvals > split_b])
+
+    D_guess = mean_diffusivity(tenfit.evals)
+
+    x0[:, 3] = D_guess
+
+    return one_stage(data, gtab, x0, jac, bounds, tol, routine, algorithm,
+                     gtol, ftol, eps)
