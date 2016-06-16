@@ -4,7 +4,9 @@ from __future__ import division, print_function, absolute_import
 import warnings
 import functools
 import numpy as np
-from scipy.optimize import minimize, leastsq
+from dipy.core.optimize import Optimizer
+
+from scipy.optimize import leastsq
 
 from dipy.core.gradients import gradient_table
 from dipy.reconst.base import ReconstModel
@@ -63,7 +65,7 @@ class IvimModel(ReconstModel):
             e_s += " positive."
             raise ValueError(e_s)
 
-    def fit(self, data, mask=None, x0=None, fit_method="one_stage", routine="leastsq",
+    def fit(self, data, mask=None, x0=None, fit_method="one_stage", routine="minimize",
             jac=False, bounds=((0, 1.), (0, 1.), (0, 1.), (0, 1.)), tol=1e-25, algorithm='L-BFGS-B',
             gtol=1e-25, ftol=1e-25, eps=1e-15):
         """ Fit method of the Ivim model class
@@ -213,13 +215,13 @@ def _minimize(flat_data, bvals, flat_x0, ivim_params,
 
     result = []
     for vox in range(flat_data.shape[0]):
-        res = minimize(sum_sq,
-                       flat_x0[vox],
-                       args=(bvals, flat_data[vox]), bounds=bounds,
-                       tol=tol, method=algorithm, jac=jac,
-                       options={'gtol': gtol, 'ftol': ftol, 'eps': eps})
-        ivim_params[vox, :4] = res.x
-        result += res
+        res = Optimizer(sum_sq,
+                        flat_x0[vox],
+                        args=(bvals, flat_data[vox]), bounds=bounds,
+                        tol=tol, method=algorithm, jac=jac,
+                        options={'gtol': gtol, 'ftol': ftol, 'eps': eps})
+        ivim_params[vox, :4] = res.xopt
+        result += [res]
     return result
 
 
@@ -231,7 +233,7 @@ def _leastsq(flat_data, bvals, flat_x0, ivim_params):
                       flat_x0[vox],
                       args=(bvals, flat_data[vox]))
         ivim_params[vox, :4] = res[0]
-        result += res
+        result += [res]
     return result
 
 
@@ -266,7 +268,18 @@ def two_stage(data, gtab, x0,
 
     D_guess = mean_diffusivity(tenfit.evals)
 
-    x0[:, 3] = D_guess
+    x0[..., 3] = D_guess
+
+    # Calculate the intercept for straight line considering bvals > split_b
+    # This will be a straight line with slope D_guess(m). If y = mx + C is the line
+    # we can get the intercept by putting x = split_b, y = data(split_b)
+    # Thus, C = data(b = split_b) - D_guess*split_b
+
+    # The guess for f is given by 1 - S0/C, where S0 is the data(b = 0) value
+
+    C = data[..., gtab.bvals == split_b][0] - D_guess * split_b
+    f_guess = 1.0 - data[..., 0] / C
+    x0[..., 1] = f_guess
 
     return one_stage(data, gtab, x0, jac, bounds, tol, routine, algorithm,
                      gtol, ftol, eps)
