@@ -10,8 +10,10 @@ from scipy.optimize import leastsq
 
 from dipy.core.gradients import gradient_table
 from dipy.reconst.base import ReconstModel
-from dipy.reconst.dti import _min_positive_signal
+from dipy.reconst.dti import _min_positive_signal, apparent_diffusion_coef
 from dipy.reconst.dti import TensorModel, mean_diffusivity
+from .vec_val_sum import vec_val_vect
+from dipy.core.sphere import Sphere
 
 
 def ivim_function(params, bvals):
@@ -146,6 +148,18 @@ class IvimModel(ReconstModel):
 
         return IvimFit(self, ivim_params)
 
+        def predict(self, ivim_params):
+            """
+            Predict a signal for this IvimModel class instance given parameters.
+
+            Parameters
+            ----------
+            ivim_params : ndarray
+                The last dimension should have 4 parameters: S0, f, D_star and D
+            """
+
+            return ivim_function(ivim_params, self.gtab.bvals)
+
 
 class IvimFit(object):
 
@@ -171,6 +185,29 @@ class IvimFit(object):
     @property
     def shape(self):
         return self.model_params.shape[:-1]
+
+    def predict(self, gtab, step=None, S0=1.0):
+        r"""
+        Given a model fit, predict the signal.
+
+        Parameters
+        ----------
+        gtab : a GradientTable class instance
+            This encodes the directions for which a prediction is made
+
+        Notes
+        -----
+        The predicted signal is given by:
+
+        .. math ::
+
+
+
+        Where:
+        .. math ::
+
+        """
+        return ivim_function(self.model_params, gtab.bvals)
 
 
 def one_stage(data, gtab, x0, jac, bounds, tol, routine, algorithm,
@@ -270,16 +307,24 @@ def two_stage(data, gtab, x0,
 
     x0[..., 3] = D_guess
 
-    # Calculate the intercept for straight line considering bvals > split_b
-    # This will be a straight line with slope D_guess(m). If y = mx + C is the line
-    # we can get the intercept by putting x = split_b, y = data(split_b)
-    # Thus, C = data(b = split_b) - D_guess*split_b
+    dti_params = tenfit.model_params
 
-    # The guess for f is given by 1 - S0/C, where S0 is the data(b = 0) value
-
-    C = data[..., gtab.bvals == split_b][0] - D_guess * split_b
-    f_guess = 1.0 - data[..., 0] / C
+    S0_hat = get_S0_guess(dti_params, data, gtab_ge_split)
+    f_guess = 1.0 - S0_hat / data[..., 0]
     x0[..., 1] = f_guess
-
     return one_stage(data, gtab, x0, jac, bounds, tol, routine, algorithm,
                      gtol, ftol, eps)
+
+
+def get_S0_guess(dti_params, data, gtab):
+    evecs = dti_params[..., 3:12].reshape((dti_params.shape[:-1] + (3, 3)))
+    evals = dti_params[..., :3]
+    qform = vec_val_vect(evecs, evals)
+
+    sphere = Sphere(xyz=gtab.bvecs[~gtab.b0s_mask])
+    ADC = apparent_diffusion_coef(qform, sphere)
+
+    S0_hat = np.mean(data[..., ~gtab.b0s_mask] /
+                     np.exp(-gtab.bvals[~gtab.b0s_mask] * ADC),
+                     -1)
+    return S0_hat
