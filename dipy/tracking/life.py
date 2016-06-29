@@ -485,7 +485,7 @@ class FiberModel(ReconstModel):
         life_matrix = sps.csr_matrix((f_matrix_sig,
                                      [f_matrix_row, f_matrix_col]))
         
-        print("DFZ DEBUG: writing life_matrix to disk...")
+        #print("DFZ DEBUG: writing life_matrix to disk...")
         file = h5py.File('/tmp/life_matrix.h5', 'w')
         tmp_data = life_matrix.toarray() #fill out the sparse matrix
         file.create_dataset("life_matrix", data=tmp_data)
@@ -629,24 +629,47 @@ class FiberModel(ReconstModel):
         while 1:
             for v_idx in range(vox_coords.shape[0]):
                 mat_row_idx = range_bvecs + v_idx * n_bvecs
-                f_matrix_row = np.zeros(len(s_in_vox[v_idx] * n_bvecs),
-                                        dtype=np.intp)
-                f_matrix_col = np.zeros(len(s_in_vox[v_idx] * n_bvecs),
-                                        dtype=np.intp)
-                f_matrix_sig = np.zeros(len(s_in_vox[v_idx] * n_bvecs),
-                                        dtype=float)
-                for ii, (sl_idx, nodes_in_vox) in enumerate(s_in_vox[v_idx]):
-                    f_matrix_row[ii*n_bvecs:ii*n_bvecs+n_bvecs] = range_bvecs
-                    f_matrix_col[ii*n_bvecs:ii*n_bvecs+n_bvecs] = sl_idx
-                    vox_fib_sig = np.zeros(n_bvecs)
-                    for node_idx in nodes_in_vox:
-                        signal_idx = closest[sl_idx][node_idx]
-                        this_signal = signal_maker[signal_idx]
-                        # Sum the signal from each node of the fiber in that
-                        # voxel:
-                        vox_fib_sig += this_signal
-                    # And add the summed thing into the corresponding rows:
-                    f_matrix_sig[ii*n_bvecs:ii*n_bvecs+n_bvecs] += vox_fib_sig
+                
+                #DFZ: uncomment the following to compute the voxel on the fly 
+#                 f_matrix_row = np.zeros(len(s_in_vox[v_idx] * n_bvecs),
+#                                         dtype=np.intp)
+#                 f_matrix_col = np.zeros(len(s_in_vox[v_idx] * n_bvecs),
+#                                         dtype=np.intp)
+#                 f_matrix_sig = np.zeros(len(s_in_vox[v_idx] * n_bvecs),
+#                                         dtype=float)
+#                 for ii, (sl_idx, nodes_in_vox) in enumerate(s_in_vox[v_idx]):
+#                     f_matrix_row[ii*n_bvecs:ii*n_bvecs+n_bvecs] = range_bvecs
+#                     f_matrix_col[ii*n_bvecs:ii*n_bvecs+n_bvecs] = sl_idx
+#                     vox_fib_sig = np.zeros(n_bvecs)
+#                     for node_idx in nodes_in_vox:
+#                         signal_idx = closest[sl_idx][node_idx]
+#                         this_signal = signal_maker[signal_idx]
+#                         # Sum the signal from each node of the fiber in that
+#                         # voxel:
+#                         vox_fib_sig += this_signal
+#                     # And add the summed thing into the corresponding rows:
+#                     f_matrix_sig[ii*n_bvecs:ii*n_bvecs+n_bvecs] += vox_fib_sig
+                    
+                #DFZ: load from HDF5:
+#                 print("DFZ DEBUG: loading from HDF5...")
+                file = h5py.File('/tmp/life_matrix.h5', 'r')
+                vox_matrix = file['/life_matrix'][v_idx*n_bvecs : (v_idx+1)*n_bvecs][:]
+                vox_row = []
+                vox_col = []
+                vox_sig = []                
+                for i in range(vox_matrix.shape[0]):
+                    for j in range(vox_matrix.shape[1]):
+                        val = vox_matrix[i][j]
+                        if abs(val) > 0.000005: #non zeros
+                            vox_row.append(i)
+                            vox_col.append(j)
+                            vox_sig.append(val)
+                file.close()  
+                #DFZ: comment the following to compute the voxel on the fly 
+                f_matrix_row = np.array(vox_row)
+                f_matrix_col = np.array(vox_col)
+                f_matrix_sig = np.array(vox_sig)
+                    
                 if np.mod(iteration, check_error_iter):
                     # Calculate the gradient contribution from this voxel:
                     XtXby = gradient_change(f_matrix_row,
@@ -688,6 +711,7 @@ class FiberModel(ReconstModel):
                 else:
                     count_bad += 1
                 if count_bad >= max_error_checks:
+#                     print("DFZ DEBUG: iteration = ", iteration)
                     return FiberFitMemory(self,
                                           vox_coords,
                                           data,
@@ -833,30 +857,37 @@ class FiberFitMemory(ReconstFit):
 
         for v_idx in range(self.vox_coords.shape[0]):
                 mat_row_idx = (range_bvecs + v_idx * n_bvecs).astype(np.intp)
-                s_in_vox = self.s_in_vox[v_idx]
-                f_matrix_row = np.zeros(len(s_in_vox) * n_bvecs, dtype=np.intp)
-                f_matrix_col = np.zeros(len(s_in_vox) * n_bvecs, dtype=np.intp)
-                f_matrix_sig = np.zeros(len(s_in_vox) * n_bvecs, dtype=float)
-                for ii, (sl_idx, nodes_in_vox) in enumerate(s_in_vox):
-                    ss = streamline[sl_idx]
-                    f_matrix_row[ii*n_bvecs:ii*n_bvecs+n_bvecs] = range_bvecs
-                    f_matrix_col[ii*n_bvecs:ii*n_bvecs+n_bvecs] = sl_idx
-                    vox_fib_sig = np.zeros(n_bvecs)
-                    for node_idx in nodes_in_vox:
-                        signal_idx = self.closest[sl_idx][node_idx]
-                        this_signal = signal_maker[signal_idx]
-                        # Sum the signal from each node of the fiber in that
-                        # voxel:
-                        vox_fib_sig += this_signal
-                    # And add the summed thing into the corresponding rows:
-                    f_matrix_sig[ii*n_bvecs:ii*n_bvecs+n_bvecs] += vox_fib_sig
+#                 s_in_vox = self.s_in_vox[v_idx]
+#                 f_matrix_row = np.zeros(len(s_in_vox) * n_bvecs, dtype=np.intp)
+#                 f_matrix_col = np.zeros(len(s_in_vox) * n_bvecs, dtype=np.intp)
+#                 f_matrix_sig = np.zeros(len(s_in_vox) * n_bvecs, dtype=float)
+#                 for ii, (sl_idx, nodes_in_vox) in enumerate(s_in_vox):
+#                     ss = streamline[sl_idx]
+#                     f_matrix_row[ii*n_bvecs:ii*n_bvecs+n_bvecs] = range_bvecs
+#                     f_matrix_col[ii*n_bvecs:ii*n_bvecs+n_bvecs] = sl_idx
+#                     vox_fib_sig = np.zeros(n_bvecs)
+#                     for node_idx in nodes_in_vox:
+#                         signal_idx = self.closest[sl_idx][node_idx]
+#                         this_signal = signal_maker[signal_idx]
+#                         # Sum the signal from each node of the fiber in that
+#                         # voxel:
+#                         vox_fib_sig += this_signal
+#                     # And add the summed thing into the corresponding rows:
+#                     f_matrix_sig[ii*n_bvecs:ii*n_bvecs+n_bvecs] += vox_fib_sig
 
-                pred_weighted[mat_row_idx] = spdot(f_matrix_row,
-                                                   f_matrix_col,
-                                                   f_matrix_sig,
-                                                   self.beta,
-                                                   f_matrix_row.shape[0],
-                                                   mat_row_idx.shape[0])
+#                 print "DFZ DEBUG FitMemory: start loading data from hdf5"   
+                file = h5py.File('/tmp/life_matrix.h5', 'r')
+                vox_data = file['/life_matrix'][v_idx*n_bvecs:(v_idx+1)*n_bvecs][:]
+                pred_weighted[mat_row_idx] = np.reshape(opt.spdot(vox_data, self.beta),
+                                           (1,
+                                            np.sum(~gtab.b0s_mask))) 
+
+#                 pred_weighted[mat_row_idx] = spdot(f_matrix_row,
+#                                                    f_matrix_col,
+#                                                    f_matrix_sig,
+#                                                    self.beta,
+#                                                    f_matrix_row.shape[0],
+#                                                    mat_row_idx.shape[0])
 
         pred = np.empty((self.vox_coords.shape[0], gtab.bvals.shape[0]))
         pred[..., ~gtab.b0s_mask] = pred_weighted.reshape(

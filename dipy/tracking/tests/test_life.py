@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 import os.path as op
 
@@ -155,6 +156,9 @@ def test_FiberFit():
     this_data = np.concatenate([data[..., gtab.b0s_mask], this_data], -1)
 
     fit = FM.fit(this_data, streamline)
+    
+    print("fit.beta = ", fit.beta)
+    
     npt.assert_almost_equal(fit.predict()[1],
                             fit.data[1], decimal=-1)
 
