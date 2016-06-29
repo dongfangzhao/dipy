@@ -211,3 +211,7 @@ def test_fit_data():
     npt.assert_almost_equal(life_fit_memory.beta, life_fit.beta, decimal=1)
     p_model_mem = life_fit_memory.predict(tensor_streamlines)
     npt.assert_(np.corrcoef(p_model, p_model_mem)[0, 1] > 0.9999)
+
+if __name__ == "__main__":
+#     test_FiberModel_init()
+    test_FiberFit()

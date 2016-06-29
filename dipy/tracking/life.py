@@ -21,6 +21,7 @@ from dipy.tracking.vox2track import streamline_mapping, _voxel2streamline
 from dipy.tracking.spdot import spdot, spdot_t, gradient_change
 import dipy.core.optimize as opt
 
+import h5py
 
 def gradient(f):
     """
@@ -236,6 +237,7 @@ class LifeSignalMaker(object):
         self.evals = evals
         # Initialize an empty dict to fill with signals for each of the sphere
         # vertices:
+
         self.signal = np.empty((self.sphere.vertices.shape[0],
                                 np.sum(~gtab.b0s_mask)))
         # We'll need to keep track of what we've already calculated:
@@ -482,7 +484,13 @@ class FiberModel(ReconstModel):
         # format:
         life_matrix = sps.csr_matrix((f_matrix_sig,
                                      [f_matrix_row, f_matrix_col]))
-
+        
+        print("DFZ DEBUG: writing life_matrix to disk...")
+        file = h5py.File('/tmp/life_matrix.h5', 'w')
+        tmp_data = life_matrix.toarray() #fill out the sparse matrix
+        file.create_dataset("life_matrix", data=tmp_data)
+        file.close()
+        
         return life_matrix, vox_coords
 
 
