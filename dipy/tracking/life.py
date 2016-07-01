@@ -8,6 +8,13 @@ Pestilli, F., Yeatman, J, Rokem, A. Kay, K. and Wandell B.A. (2014). Validation
 and statistical inference in living connectomes. Nature Methods 11:
 1058-1063. doi:10.1038/nmeth.3098
 """
+
+
+from __future__ import print_function
+import h5py
+import os
+
+
 import numpy as np
 import scipy.sparse as sps
 import scipy.linalg as la
@@ -21,7 +28,6 @@ from dipy.tracking.vox2track import streamline_mapping, _voxel2streamline
 from dipy.tracking.spdot import spdot, spdot_t, gradient_change
 import dipy.core.optimize as opt
 
-import h5py
 
 def gradient(f):
     """
@@ -711,7 +717,8 @@ class FiberModel(ReconstModel):
                 else:
                     count_bad += 1
                 if count_bad >= max_error_checks:
-#                     print("DFZ DEBUG: iteration = ", iteration)
+                    if "1" == os.getenv('PARALIFE_DEBUG', 0):
+                        print("Model converged at step #", iteration)
                     return FiberFitMemory(self,
                                           vox_coords,
                                           data,
@@ -723,7 +730,8 @@ class FiberModel(ReconstModel):
 
                 error_checks += 1
             iteration += 1
-
+            if ("1" == os.getenv('PARALIFE_DEBUG', 0)) and (0 == iteration % 100):
+                print("Converging at step #", iteration)
 class FiberFitSpeed(ReconstFit):
     """
     A fit of the LiFE model to diffusion data
