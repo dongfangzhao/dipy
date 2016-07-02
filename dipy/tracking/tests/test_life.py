@@ -140,6 +140,7 @@ def test_Paralife():
     streamline = [np.array([[1, 2, 3], [4, 5, 3], [5, 6, 3], [6, 7, 3]]),
                   np.array([[1, 2, 3], [4, 5, 3], [5, 6, 3]])]
 
+    #DFZ Q: is it realistic to save fiber_matrix in memory in real life?
     fiber_matrix, vox_coords = FM.setup(streamline, None)
 
     w = np.array([0.5, 0.5])

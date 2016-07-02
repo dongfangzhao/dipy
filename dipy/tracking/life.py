@@ -466,12 +466,14 @@ class FiberModel(ReconstModel):
             del SignalMaker
 
 
-        #DFZ TODO: we need to break the following life_matrix into 4 voxels 
-
+        #DFZ: we need to break the following life_matrix into 4 voxels 
         keep_ct = 0
         range_bvecs = np.arange(n_bvecs).astype(int)
         # In each voxel:
+        dfz_cnt = 0
         for v_idx in range(vox_coords.shape[0]):
+            if "1" == os.getenv('PARALIFE_DEBUG', 0):
+                print("voxel #", dfz_cnt); dfz_cnt += 1 
             mat_row_idx = (range_bvecs + v_idx * n_bvecs).astype(np.intp)
             # For each fiber in that voxel:
             for f_idx in v2f[v_idx]:
@@ -479,6 +481,9 @@ class FiberModel(ReconstModel):
                 # indices in the pre-allocated linear arrays
                 f_matrix_row[keep_ct:keep_ct+n_bvecs] = mat_row_idx
                 f_matrix_col[keep_ct:keep_ct+n_bvecs] = f_idx
+                if "1" == os.getenv('PARALIFE_DEBUG', 0):
+                    print("f_matrix_row =", f_matrix_row) 
+                    print("f_matrix_col =", f_matrix_col)
 
                 vox_fiber_sig = np.zeros(n_bvecs)
                 for node_idx in v2fn[f_idx][v_idx]:
@@ -487,7 +492,8 @@ class FiberModel(ReconstModel):
                 # And add the summed thing into the corresponding rows:
                 f_matrix_sig[keep_ct:keep_ct+n_bvecs] += vox_fiber_sig
                 keep_ct = keep_ct + n_bvecs
-
+            #DFZ TODO: save the voxel matrix to a file:
+            #paralife_vox_4_0 <- serialize(row, col, sig)
         del v2f, v2fn
         # Allocate the sparse matrix, using the more memory-efficient 'csr'
         # format:
