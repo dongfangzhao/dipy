@@ -465,6 +465,9 @@ class FiberModel(ReconstModel):
         if sphere is not False:
             del SignalMaker
 
+
+        #DFZ TODO: we need to break the following life_matrix into 4 voxels 
+
         keep_ct = 0
         range_bvecs = np.arange(n_bvecs).astype(int)
         # In each voxel:
