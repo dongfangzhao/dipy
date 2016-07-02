@@ -13,6 +13,7 @@ and statistical inference in living connectomes. Nature Methods 11:
 from __future__ import print_function
 import h5py
 import os
+import pickle
 
 
 import numpy as np
@@ -499,27 +500,30 @@ class FiberModel(ReconstModel):
                 keep_ct = keep_ct + n_bvecs
                 
                 #DFZ: construct the paralife voxel matrix
-                paralife_row[para_start:para_start+n_bvecs] = mat_row_idx
+                paralife_row[para_start:para_start+n_bvecs] = range_bvecs
                 paralife_col[para_start:para_start+n_bvecs] = f_idx
                 paralife_sig[para_start:para_start+n_bvecs] = vox_fiber_sig
                 para_start += n_bvecs
                 
             #DFZ: save the voxel matrix to a file:
             vox_mat = sps.csr_matrix((paralife_sig, [paralife_row, paralife_col]))
-            if "1" == os.getenv("PARALIFE_DEBUG"):
-#                 print("vox_mat =", vox_mat)
-                print("type(vox_mat) =", type(vox_mat))
+#             if "1" == os.getenv("PARALIFE_DEBUG"):
+# #                 print("vox_mat =", vox_mat)
+#                 print("type(vox_mat) =", type(vox_mat))
             #DFZ TODO: should I serialize it to JSON or using pickle?...
-
+            with open('/tmp/vox'+str(v_idx)+'.pickle', 'wb') as f:
+                pickle.dump(vox_mat, f)
                         
         del v2f, v2fn
         # Allocate the sparse matrix, using the more memory-efficient 'csr'
         # format:
         life_matrix = sps.csr_matrix((f_matrix_sig,
                                      [f_matrix_row, f_matrix_col]))
-        
-        if "1" == os.getenv("PARALIFE_DEBUG"):
-            print("life_matrix =", life_matrix)
+#         with open('life_matrix.pickle', 'wb') as f:
+#                 pickle.dump(vox_mat, f)
+# 
+#         if "1" == os.getenv("PARALIFE_DEBUG"):
+#             print("life_matrix =", life_matrix)
         
         #print("DFZ DEBUG: writing life_matrix to disk...")
         file = h5py.File('/tmp/life_matrix.h5', 'w')
@@ -688,23 +692,37 @@ class FiberModel(ReconstModel):
                     
                 #DFZ: load from HDF5:
 #                 print("DFZ DEBUG: loading from HDF5...")
-                file = h5py.File('/tmp/life_matrix.h5', 'r')
-                vox_matrix = file['/life_matrix'][v_idx*n_bvecs : (v_idx+1)*n_bvecs][:]
-                vox_row = []
-                vox_col = []
-                vox_sig = []                
-                for i in range(vox_matrix.shape[0]):
-                    for j in range(vox_matrix.shape[1]):
-                        val = vox_matrix[i][j]
-                        if abs(val) > 0.000005: #non zeros
-                            vox_row.append(i)
-                            vox_col.append(j)
-                            vox_sig.append(val)
-                file.close()  
-                #DFZ: comment the following to compute the voxel on the fly 
-                f_matrix_row = np.array(vox_row)
-                f_matrix_col = np.array(vox_col)
-                f_matrix_sig = np.array(vox_sig)
+#                 file = h5py.File('/tmp/life_matrix.h5', 'r')
+#                 vox_matrix = file['/life_matrix'][v_idx*n_bvecs : (v_idx+1)*n_bvecs][:]
+#                 vox_row = []
+#                 vox_col = []
+#                 vox_sig = []                
+#                 for i in range(vox_matrix.shape[0]):
+#                     for j in range(vox_matrix.shape[1]):
+#                         val = vox_matrix[i][j]
+#                         if abs(val) > 0.000005: #non zeros
+#                             vox_row.append(i)
+#                             vox_col.append(j)
+#                             vox_sig.append(val)
+#                 file.close()  
+#                 f_matrix_row = np.array(vox_row)
+#                 f_matrix_col = np.array(vox_col)
+#                 f_matrix_sig = np.array(vox_sig)
+                
+                #DFZ: loading from pickle
+                with open("/tmp/vox"+str(v_idx)+".pickle", "rb") as f:
+                    paralife_vox_matrix = pickle.load(f)
+#                 print("v_idx =", v_idx)
+#                 print("paralife_vox_matrix =", paralife_vox_matrix)
+#                 print("paralife_vox_matrix.indptr =", paralife_vox_matrix.indptr)
+#                 vox_row = paralife_vox_matrix.nonzero()[0]
+#                 vox_col = paralife_vox_matrix.nonzero()[1]
+#                 print("vox_row =", vox_row)
+#                 print("vox_col =", vox_col)
+#                 print("paralife_vox_matrix.data =", paralife_vox_matrix.data)                   
+                f_matrix_row = np.array(paralife_vox_matrix.nonzero()[0]).astype(np.intp)
+                f_matrix_col = np.array(paralife_vox_matrix.nonzero()[1]).astype(np.intp)
+                f_matrix_sig = np.array(paralife_vox_matrix.data).astype(np.float)
                     
                 if np.mod(iteration, check_error_iter):
                     # Calculate the gradient contribution from this voxel:
@@ -916,6 +934,11 @@ class FiberFitMemory(ReconstFit):
 #                 print "DFZ DEBUG FitMemory: start loading data from hdf5"   
                 file = h5py.File('/tmp/life_matrix.h5', 'r')
                 vox_data = file['/life_matrix'][v_idx*n_bvecs:(v_idx+1)*n_bvecs][:]
+                with open("/tmp/vox"+str(v_idx)+".pickle", "rb") as f:
+                    vox_mat = pickle.load(f).toarray()
+                print("v_idx =", v_idx)
+                print("vox_data =", vox_data)
+                print("vox_mat =", vox_mat)
                 pred_weighted[mat_row_idx] = np.reshape(opt.spdot(vox_data, self.beta),
                                            (1,
                                             np.sum(~gtab.b0s_mask))) 
