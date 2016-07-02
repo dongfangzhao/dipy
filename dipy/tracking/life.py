@@ -465,26 +465,31 @@ class FiberModel(ReconstModel):
         if sphere is not False:
             del SignalMaker
 
-
-        #DFZ: we need to break the following life_matrix into 4 voxels 
+        
+        #DFZ: we need to break the following life_matrix into 4 voxels       
         keep_ct = 0
         range_bvecs = np.arange(n_bvecs).astype(int)
         # In each voxel:
-        dfz_cnt = 0
-        for v_idx in range(vox_coords.shape[0]):
+        for v_idx in range(vox_coords.shape[0]): 
             if "1" == os.getenv('PARALIFE_DEBUG', 0):
-                print("voxel #", dfz_cnt); dfz_cnt += 1 
+                print("v_idx =", v_idx) 
             mat_row_idx = (range_bvecs + v_idx * n_bvecs).astype(np.intp)
+                      
+            #DFZ: reset the starting index for paralife
+            para_start = 0 
+            paralife_row = np.zeros(n_bvecs*len(v2f[v_idx]), dtype=np.intp)
+            paralife_col = np.zeros(n_bvecs*len(v2f[v_idx]), dtype=np.intp)
+            paralife_sig = np.zeros(n_bvecs*len(v2f[v_idx]), dtype=np.float)
+                        
             # For each fiber in that voxel:
             for f_idx in v2f[v_idx]:
                 # For each fiber-voxel combination, store the row/column
                 # indices in the pre-allocated linear arrays
                 f_matrix_row[keep_ct:keep_ct+n_bvecs] = mat_row_idx
                 f_matrix_col[keep_ct:keep_ct+n_bvecs] = f_idx
-                if "1" == os.getenv('PARALIFE_DEBUG', 0):
-                    print("f_matrix_row =", f_matrix_row) 
-                    print("f_matrix_col =", f_matrix_col)
-
+#                 if "1" == os.getenv('PARALIFE_DEBUG', 0):
+#                     print("f_matrix_row =", f_matrix_row) 
+#                     print("f_matrix_col =", f_matrix_col)
                 vox_fiber_sig = np.zeros(n_bvecs)
                 for node_idx in v2fn[f_idx][v_idx]:
                     # Sum the signal from each node of the fiber in that voxel:
@@ -492,13 +497,29 @@ class FiberModel(ReconstModel):
                 # And add the summed thing into the corresponding rows:
                 f_matrix_sig[keep_ct:keep_ct+n_bvecs] += vox_fiber_sig
                 keep_ct = keep_ct + n_bvecs
-            #DFZ TODO: save the voxel matrix to a file:
-            #paralife_vox_4_0 <- serialize(row, col, sig)
+                
+                #DFZ: construct the paralife voxel matrix
+                paralife_row[para_start:para_start+n_bvecs] = mat_row_idx
+                paralife_col[para_start:para_start+n_bvecs] = f_idx
+                paralife_sig[para_start:para_start+n_bvecs] = vox_fiber_sig
+                para_start += n_bvecs
+                
+            #DFZ: save the voxel matrix to a file:
+            vox_mat = sps.csr_matrix((paralife_sig, [paralife_row, paralife_col]))
+            if "1" == os.getenv("PARALIFE_DEBUG"):
+#                 print("vox_mat =", vox_mat)
+                print("type(vox_mat) =", type(vox_mat))
+            #DFZ TODO: should I serialize it to JSON or using pickle?...
+
+                        
         del v2f, v2fn
         # Allocate the sparse matrix, using the more memory-efficient 'csr'
         # format:
         life_matrix = sps.csr_matrix((f_matrix_sig,
                                      [f_matrix_row, f_matrix_col]))
+        
+        if "1" == os.getenv("PARALIFE_DEBUG"):
+            print("life_matrix =", life_matrix)
         
         #print("DFZ DEBUG: writing life_matrix to disk...")
         file = h5py.File('/tmp/life_matrix.h5', 'w')
