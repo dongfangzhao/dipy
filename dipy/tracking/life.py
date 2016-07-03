@@ -444,6 +444,10 @@ class FiberModel(ReconstModel):
         n_bvecs = self.gtab.bvals[~self.gtab.b0s_mask].shape[0]
         v2f, v2fn = voxel2streamline(streamline, transformed=True,
                                      affine=affine, unique_idx=vox_coords)
+        
+#         print ("len(streamline) =", len(streamline))
+        col_max = len(streamline)
+        
         # How many fibers in each voxel (this will determine how many
         # components are in the matrix):
         n_unique_f = len(np.hstack(v2f.values()))
@@ -472,15 +476,13 @@ class FiberModel(ReconstModel):
         range_bvecs = np.arange(n_bvecs).astype(int)
         # In each voxel:
         for v_idx in range(vox_coords.shape[0]): 
-            if "1" == os.getenv('PARALIFE_DEBUG', 0):
-                print("v_idx =", v_idx) 
             mat_row_idx = (range_bvecs + v_idx * n_bvecs).astype(np.intp)
                       
             #DFZ: reset the starting index for paralife
             para_start = 0 
-            paralife_row = np.zeros(n_bvecs*len(v2f[v_idx]), dtype=np.intp)
-            paralife_col = np.zeros(n_bvecs*len(v2f[v_idx]), dtype=np.intp)
-            paralife_sig = np.zeros(n_bvecs*len(v2f[v_idx]), dtype=np.float)
+            paralife_row = np.zeros(n_bvecs*col_max, dtype=np.intp)
+            paralife_col = np.zeros(n_bvecs*col_max, dtype=np.intp)
+            paralife_sig = np.zeros(n_bvecs*col_max, dtype=np.float)
                         
             # For each fiber in that voxel:
             for f_idx in v2f[v_idx]:
@@ -507,12 +509,10 @@ class FiberModel(ReconstModel):
                 
             #DFZ: save the voxel matrix to a file:
             vox_mat = sps.csr_matrix((paralife_sig, [paralife_row, paralife_col]))
-#             if "1" == os.getenv("PARALIFE_DEBUG"):
-# #                 print("vox_mat =", vox_mat)
-#                 print("type(vox_mat) =", type(vox_mat))
-            #DFZ TODO: should I serialize it to JSON or using pickle?...
             with open('/tmp/vox'+str(v_idx)+'.pickle', 'wb') as f:
                 pickle.dump(vox_mat, f)
+#             if "1" == os.getenv("PARALIFE_DEBUG"):
+#                 print("vox_mat.toarray() =", vox_mat.toarray())
                         
         del v2f, v2fn
         # Allocate the sparse matrix, using the more memory-efficient 'csr'
@@ -526,10 +526,10 @@ class FiberModel(ReconstModel):
 #             print("life_matrix =", life_matrix)
         
         #print("DFZ DEBUG: writing life_matrix to disk...")
-        file = h5py.File('/tmp/life_matrix.h5', 'w')
-        tmp_data = life_matrix.toarray() #fill out the sparse matrix
-        file.create_dataset("life_matrix", data=tmp_data)
-        file.close()
+#         file = h5py.File('/tmp/life_matrix.h5', 'w')
+#         tmp_data = life_matrix.toarray() #fill out the sparse matrix
+#         file.create_dataset("life_matrix", data=tmp_data)
+#         file.close()
         
         return life_matrix, vox_coords
 
@@ -910,9 +910,13 @@ class FiberFitMemory(ReconstFit):
         f_matrix_shape = (self.fit_data.shape[0], len(streamline))
         range_bvecs = np.arange(n_bvecs).astype(int)
         pred_weighted = np.zeros(self.fit_data.shape)
+        
+        col_max = len(streamline)
 
         for v_idx in range(self.vox_coords.shape[0]):
                 mat_row_idx = (range_bvecs + v_idx * n_bvecs).astype(np.intp)
+                
+                #DFZ: calculate voxel on the fly
 #                 s_in_vox = self.s_in_vox[v_idx]
 #                 f_matrix_row = np.zeros(len(s_in_vox) * n_bvecs, dtype=np.intp)
 #                 f_matrix_col = np.zeros(len(s_in_vox) * n_bvecs, dtype=np.intp)
@@ -931,24 +935,33 @@ class FiberFitMemory(ReconstFit):
 #                     # And add the summed thing into the corresponding rows:
 #                     f_matrix_sig[ii*n_bvecs:ii*n_bvecs+n_bvecs] += vox_fib_sig
 
-#                 print "DFZ DEBUG FitMemory: start loading data from hdf5"   
-                file = h5py.File('/tmp/life_matrix.h5', 'r')
-                vox_data = file['/life_matrix'][v_idx*n_bvecs:(v_idx+1)*n_bvecs][:]
+                #DFZ: load voxel from pickle
                 with open("/tmp/vox"+str(v_idx)+".pickle", "rb") as f:
-                    vox_mat = pickle.load(f).toarray()
-                print("v_idx =", v_idx)
-                print("vox_data =", vox_data)
-                print("vox_mat =", vox_mat)
-                pred_weighted[mat_row_idx] = np.reshape(opt.spdot(vox_data, self.beta),
-                                           (1,
-                                            np.sum(~gtab.b0s_mask))) 
+                    vox_mat = pickle.load(f)
+                f_matrix_row = np.array(vox_mat.nonzero()[0]).astype(np.intp)
+                f_matrix_col = np.array(vox_mat.nonzero()[1]).astype(np.intp)
+                f_matrix_sig = np.array(vox_mat.data).astype(np.float) 
+                
+#                 print("f_matrix_row =", f_matrix_row)
+#                 print("vox_row =", vox_row)  
+#                 print("f_matrix_col =", f_matrix_col)
+#                 print("vox_col =", vox_col)  
+#                 print("f_matrix_sig =", f_matrix_sig)
+#                 print("vox_sig =", vox_sig)
 
-#                 pred_weighted[mat_row_idx] = spdot(f_matrix_row,
-#                                                    f_matrix_col,
-#                                                    f_matrix_sig,
-#                                                    self.beta,
-#                                                    f_matrix_row.shape[0],
-#                                                    mat_row_idx.shape[0])
+#                 print "DFZ DEBUG FitMemory: start loading data from hdf5"   
+#                 file = h5py.File('/tmp/life_matrix.h5', 'r')
+#                 vox_data = file['/life_matrix'][v_idx*n_bvecs:(v_idx+1)*n_bvecs][:]
+#                 pred_weighted[mat_row_idx] = np.reshape(opt.spdot(vox_data, self.beta),
+#                                            (1,
+#                                             np.sum(~gtab.b0s_mask))) 
+ 
+                pred_weighted[mat_row_idx] = spdot(f_matrix_row,
+                                                   f_matrix_col,
+                                                   f_matrix_sig,
+                                                   self.beta,
+                                                   f_matrix_row.shape[0],
+                                                   mat_row_idx.shape[0])
 
         pred = np.empty((self.vox_coords.shape[0], gtab.bvals.shape[0]))
         pred[..., ~gtab.b0s_mask] = pred_weighted.reshape(
