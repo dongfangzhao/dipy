@@ -408,8 +408,8 @@ class FiberModel(ReconstModel):
         return (to_fit, weighted_signal, b0_signal, relative_signal, mean_sig,
                 vox_data)
 
-
-    def setup(self, streamline, affine, sphere=None):
+    #DFZ: serialize voxels into disks
+    def setup_serialize(self, streamline, affine, sphere=None):
         """
         Set up the necessary components for the LiFE model: the matrix of
         fiber-contributions to the DWI signal, and the coordinates of voxels
@@ -447,6 +447,85 @@ class FiberModel(ReconstModel):
         
 #         print ("len(streamline) =", len(streamline))
         col_max = len(streamline)
+
+        fiber_signal = []
+        for s_idx, s in enumerate(streamline):
+            if sphere is not False:
+                fiber_signal.append(SignalMaker.streamline_signal(s))
+            else:
+                fiber_signal.append(streamline_signal(s,
+                                                      self.gtab,
+                                                      self.evals))
+
+        del streamline
+        if sphere is not False:
+            del SignalMaker
+        
+        #DFZ: we need to break the following life_matrix into 4 voxels       
+        range_bvecs = np.arange(n_bvecs).astype(int)
+        # In each voxel:
+        for v_idx in range(vox_coords.shape[0]): 
+            #DFZ: reset the starting index for paralife
+            para_start = 0 
+            paralife_row = np.zeros(n_bvecs*col_max, dtype=np.intp)
+            paralife_col = np.zeros(n_bvecs*col_max, dtype=np.intp)
+            paralife_sig = np.zeros(n_bvecs*col_max, dtype=np.float)
+                        
+            # For each fiber in that voxel:
+            for f_idx in v2f[v_idx]:
+                vox_fiber_sig = np.zeros(n_bvecs)
+                for node_idx in v2fn[f_idx][v_idx]:
+                    vox_fiber_sig += fiber_signal[f_idx][node_idx]
+                
+                #DFZ: construct the paralife voxel matrix
+                paralife_row[para_start:para_start+n_bvecs] = range_bvecs
+                paralife_col[para_start:para_start+n_bvecs] = f_idx
+                paralife_sig[para_start:para_start+n_bvecs] = vox_fiber_sig
+                para_start += n_bvecs
+                
+            #DFZ: save the voxel matrix to a file:
+            vox_mat = sps.csr_matrix((paralife_sig, [paralife_row, paralife_col]))
+            with open('/tmp/vox'+str(v_idx)+'.pickle', 'wb') as f:
+                pickle.dump(vox_mat, f)
+        
+        return
+
+
+    def setup(self, streamline, affine, sphere=None):
+        """
+        Set up the necessary components for the LiFE model: the matrix of
+        fiber-contributions to the DWI signal, and the coordinates of voxels
+        for which the equations will be solved
+        Parameters
+        ----------
+        streamline : list
+            Streamlines, each is an array of shape (n, 3)
+        affine : 4 by 4 array
+            Mapping from the streamline coordinates to the data
+        sphere: `dipy.core.Sphere` instance.
+            Whether to approximate (and cache) the signal on a discrete
+            sphere. This may confer a significant speed-up in setting up the
+            problem, but is not as accurate. If `False`, we use the exact
+            gradients along the streamlines to calculate the matrix, instead of
+            an approximation. Defaults to use the 362-vertex symmetric sphere
+            from :mod:`dipy.data`
+        """
+        if sphere is not False:
+            SignalMaker = LifeSignalMaker(self.gtab,
+                                          evals=self.evals,
+                                          sphere=sphere)
+
+        if affine is None:
+            affine = np.eye(4)
+        streamline = transform_streamlines(streamline, affine)
+        # Assign some local variables, for shorthand:
+        all_coords = np.concatenate(streamline)
+        vox_coords = unique_rows(np.round(all_coords).astype(np.intp))
+        del all_coords
+        # We only consider the diffusion-weighted signals:
+        n_bvecs = self.gtab.bvals[~self.gtab.b0s_mask].shape[0]
+        v2f, v2fn = voxel2streamline(streamline, transformed=True,
+                                     affine=affine, unique_idx=vox_coords)
         
         # How many fibers in each voxel (this will determine how many
         # components are in the matrix):
@@ -469,20 +548,12 @@ class FiberModel(ReconstModel):
         del streamline
         if sphere is not False:
             del SignalMaker
-
         
-        #DFZ: we need to break the following life_matrix into 4 voxels       
         keep_ct = 0
         range_bvecs = np.arange(n_bvecs).astype(int)
         # In each voxel:
         for v_idx in range(vox_coords.shape[0]): 
             mat_row_idx = (range_bvecs + v_idx * n_bvecs).astype(np.intp)
-                      
-            #DFZ: reset the starting index for paralife
-            para_start = 0 
-            paralife_row = np.zeros(n_bvecs*col_max, dtype=np.intp)
-            paralife_col = np.zeros(n_bvecs*col_max, dtype=np.intp)
-            paralife_sig = np.zeros(n_bvecs*col_max, dtype=np.float)
                         
             # For each fiber in that voxel:
             for f_idx in v2f[v_idx]:
@@ -490,9 +561,6 @@ class FiberModel(ReconstModel):
                 # indices in the pre-allocated linear arrays
                 f_matrix_row[keep_ct:keep_ct+n_bvecs] = mat_row_idx
                 f_matrix_col[keep_ct:keep_ct+n_bvecs] = f_idx
-#                 if "1" == os.getenv('PARALIFE_DEBUG', 0):
-#                     print("f_matrix_row =", f_matrix_row) 
-#                     print("f_matrix_col =", f_matrix_col)
                 vox_fiber_sig = np.zeros(n_bvecs)
                 for node_idx in v2fn[f_idx][v_idx]:
                     # Sum the signal from each node of the fiber in that voxel:
@@ -500,31 +568,13 @@ class FiberModel(ReconstModel):
                 # And add the summed thing into the corresponding rows:
                 f_matrix_sig[keep_ct:keep_ct+n_bvecs] += vox_fiber_sig
                 keep_ct = keep_ct + n_bvecs
-                
-                #DFZ: construct the paralife voxel matrix
-                paralife_row[para_start:para_start+n_bvecs] = range_bvecs
-                paralife_col[para_start:para_start+n_bvecs] = f_idx
-                paralife_sig[para_start:para_start+n_bvecs] = vox_fiber_sig
-                para_start += n_bvecs
-                
-            #DFZ: save the voxel matrix to a file:
-            vox_mat = sps.csr_matrix((paralife_sig, [paralife_row, paralife_col]))
-            with open('/tmp/vox'+str(v_idx)+'.pickle', 'wb') as f:
-                pickle.dump(vox_mat, f)
-#             if "1" == os.getenv("PARALIFE_DEBUG"):
-#                 print("vox_mat.toarray() =", vox_mat.toarray())
-                        
+
         del v2f, v2fn
         # Allocate the sparse matrix, using the more memory-efficient 'csr'
         # format:
         life_matrix = sps.csr_matrix((f_matrix_sig,
                                      [f_matrix_row, f_matrix_col]))
-#         with open('life_matrix.pickle', 'wb') as f:
-#                 pickle.dump(vox_mat, f)
-# 
-#         if "1" == os.getenv("PARALIFE_DEBUG"):
-#             print("life_matrix =", life_matrix)
-        
+
         #print("DFZ DEBUG: writing life_matrix to disk...")
 #         file = h5py.File('/tmp/life_matrix.h5', 'w')
 #         tmp_data = life_matrix.toarray() #fill out the sparse matrix
@@ -712,14 +762,6 @@ class FiberModel(ReconstModel):
                 #DFZ: loading from pickle
                 with open("/tmp/vox"+str(v_idx)+".pickle", "rb") as f:
                     paralife_vox_matrix = pickle.load(f)
-#                 print("v_idx =", v_idx)
-#                 print("paralife_vox_matrix =", paralife_vox_matrix)
-#                 print("paralife_vox_matrix.indptr =", paralife_vox_matrix.indptr)
-#                 vox_row = paralife_vox_matrix.nonzero()[0]
-#                 vox_col = paralife_vox_matrix.nonzero()[1]
-#                 print("vox_row =", vox_row)
-#                 print("vox_col =", vox_col)
-#                 print("paralife_vox_matrix.data =", paralife_vox_matrix.data)                   
                 f_matrix_row = np.array(paralife_vox_matrix.nonzero()[0]).astype(np.intp)
                 f_matrix_col = np.array(paralife_vox_matrix.nonzero()[1]).astype(np.intp)
                 f_matrix_sig = np.array(paralife_vox_matrix.data).astype(np.float)
@@ -941,20 +983,6 @@ class FiberFitMemory(ReconstFit):
                 f_matrix_row = np.array(vox_mat.nonzero()[0]).astype(np.intp)
                 f_matrix_col = np.array(vox_mat.nonzero()[1]).astype(np.intp)
                 f_matrix_sig = np.array(vox_mat.data).astype(np.float) 
-                
-#                 print("f_matrix_row =", f_matrix_row)
-#                 print("vox_row =", vox_row)  
-#                 print("f_matrix_col =", f_matrix_col)
-#                 print("vox_col =", vox_col)  
-#                 print("f_matrix_sig =", f_matrix_sig)
-#                 print("vox_sig =", vox_sig)
-
-#                 print "DFZ DEBUG FitMemory: start loading data from hdf5"   
-#                 file = h5py.File('/tmp/life_matrix.h5', 'r')
-#                 vox_data = file['/life_matrix'][v_idx*n_bvecs:(v_idx+1)*n_bvecs][:]
-#                 pred_weighted[mat_row_idx] = np.reshape(opt.spdot(vox_data, self.beta),
-#                                            (1,
-#                                             np.sum(~gtab.b0s_mask))) 
  
                 pred_weighted[mat_row_idx] = spdot(f_matrix_row,
                                                    f_matrix_col,
