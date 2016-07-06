@@ -483,10 +483,10 @@ class FiberModel(ReconstModel):
                 paralife_sig[para_start:para_start+n_bvecs] = vox_fiber_sig
                 para_start += n_bvecs
                 
-            #DFZ: save the voxel matrix to a file:
-            vox_mat = sps.csr_matrix((paralife_sig, [paralife_row, paralife_col]))
-            with open('/tmp/vox'+str(v_idx)+'.pickle', 'wb') as f:
-                pickle.dump(vox_mat, f)
+            #DFZ: save the voxel to a file:
+            paralife_vox = [paralife_row, paralife_col, paralife_sig]
+            with open('/tmp/paralife_vox'+str(v_idx)+'.pickle', 'wb') as f:
+                pickle.dump(paralife_vox, f)
         
         return
 
@@ -760,11 +760,12 @@ class FiberModel(ReconstModel):
 #                 f_matrix_sig = np.array(vox_sig)
                 
                 #DFZ: loading from pickle
-                with open("/tmp/vox"+str(v_idx)+".pickle", "rb") as f:
-                    paralife_vox_matrix = pickle.load(f)
-                f_matrix_row = np.array(paralife_vox_matrix.nonzero()[0]).astype(np.intp)
-                f_matrix_col = np.array(paralife_vox_matrix.nonzero()[1]).astype(np.intp)
-                f_matrix_sig = np.array(paralife_vox_matrix.data).astype(np.float)
+                with open("/tmp/paralife_vox"+str(v_idx)+".pickle", "rb") as f:
+                    paralife_vox = pickle.load(f)
+                    
+                f_matrix_row = paralife_vox[0]
+                f_matrix_col = paralife_vox[1]
+                f_matrix_sig = paralife_vox[2]
                     
                 if np.mod(iteration, check_error_iter):
                     # Calculate the gradient contribution from this voxel:
@@ -954,7 +955,7 @@ class FiberFitMemory(ReconstFit):
         pred_weighted = np.zeros(self.fit_data.shape)
         
         col_max = len(streamline)
-
+        
         for v_idx in range(self.vox_coords.shape[0]):
                 mat_row_idx = (range_bvecs + v_idx * n_bvecs).astype(np.intp)
                 
@@ -978,11 +979,12 @@ class FiberFitMemory(ReconstFit):
 #                     f_matrix_sig[ii*n_bvecs:ii*n_bvecs+n_bvecs] += vox_fib_sig
 
                 #DFZ: load voxel from pickle
-                with open("/tmp/vox"+str(v_idx)+".pickle", "rb") as f:
-                    vox_mat = pickle.load(f)
-                f_matrix_row = np.array(vox_mat.nonzero()[0]).astype(np.intp)
-                f_matrix_col = np.array(vox_mat.nonzero()[1]).astype(np.intp)
-                f_matrix_sig = np.array(vox_mat.data).astype(np.float) 
+                with open("/tmp/paralife_vox"+str(v_idx)+".pickle", "rb") as f:
+                    paralife_vox = pickle.load(f)
+
+                f_matrix_row = paralife_vox[0]
+                f_matrix_col = paralife_vox[1]
+                f_matrix_sig = paralife_vox[2]                
  
                 pred_weighted[mat_row_idx] = spdot(f_matrix_row,
                                                    f_matrix_col,
