@@ -14,7 +14,7 @@ from __future__ import print_function
 #import h5py
 import os
 import pickle
-
+from myria import *
 
 import numpy as np
 import scipy.sparse as sps
@@ -486,6 +486,8 @@ class FiberModel(ReconstModel):
             paralife_vox = [paralife_row, paralife_col, paralife_sig]
             
             #DFZ: save the voxel to a file:
+			#DFZ TODO: the pickle will be uploaded to Myria later
+			#DFZ TODO: or maybe there's an easy way to upload a numpy matrix
 #             with open('/tmp/paralife_vox'+str(v_idx)+'.pickle', 'wb') as f:
 #                 pickle.dump(paralife_vox, f)
                 

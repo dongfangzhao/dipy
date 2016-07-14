@@ -15,5 +15,6 @@ result = connection.upload_file(
     name, schema, data, delimiter=',', overwrite=True)
 
 relation = MyriaRelation("Books", connection=connection)
-print relation.to_dict()
+#print relation.to_dict()
+print relation.to_dataframe().as_matrix()
 print "Done"
