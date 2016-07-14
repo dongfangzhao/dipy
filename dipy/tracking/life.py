@@ -483,10 +483,23 @@ class FiberModel(ReconstModel):
                 paralife_sig[para_start:para_start+n_bvecs] = vox_fiber_sig
                 para_start += n_bvecs
                 
-            #DFZ: save the voxel to a file:
             paralife_vox = [paralife_row, paralife_col, paralife_sig]
-            with open('/tmp/paralife_vox'+str(v_idx)+'.pickle', 'wb') as f:
-                pickle.dump(paralife_vox, f)
+            
+            #DFZ: save the voxel to a file:
+#             with open('/tmp/paralife_vox'+str(v_idx)+'.pickle', 'wb') as f:
+#                 pickle.dump(paralife_vox, f)
+                
+            #DFZ: or if we want save it to memmap:
+            if 0 == v_idx:
+                mmap_mode = 'w+'
+            else:
+                mmap_mode = 'r+'
+            fp = np.memmap('/tmp/paralife.mmap', dtype='float64', 
+                           mode=mmap_mode, shape=(3,n_bvecs*col_max), 
+                           offset = v_idx*3*n_bvecs*col_max*8) #DFZ: float64 = 8 bytes
+            fp[:] = paralife_vox[:]
+            fp.flush() #DFZ: explicitly flush the memory
+            del fp            
         
         return
 
@@ -712,6 +725,8 @@ class FiberModel(ReconstModel):
                 nodes_in_vox = np.where(find_vox)[0]
                 s_in_vox[v_idx].append((sl_idx, nodes_in_vox))
 
+        col_max = len(streamline)
+
         # We no longer need these variables:
         del v2f, streamline, sl_as_coords
 
@@ -760,12 +775,20 @@ class FiberModel(ReconstModel):
 #                 f_matrix_sig = np.array(vox_sig)
                 
                 #DFZ: loading from pickle
-                with open("/tmp/paralife_vox"+str(v_idx)+".pickle", "rb") as f:
-                    paralife_vox = pickle.load(f)
+#                 with open("/tmp/paralife_vox"+str(v_idx)+".pickle", "rb") as f:
+#                     paralife_vox = pickle.load(f)
+#                     
+#                 f_matrix_row = paralife_vox[0]
+#                 f_matrix_col = paralife_vox[1]
+#                 f_matrix_sig = paralife_vox[2]
                     
-                f_matrix_row = paralife_vox[0]
-                f_matrix_col = paralife_vox[1]
-                f_matrix_sig = paralife_vox[2]
+                #DFZ: or we can load from memmap file
+                fpo = np.memmap('/tmp/paralife.mmap', dtype='float64', mode='r', 
+                                offset=v_idx*3*col_max*n_bvecs*8, shape=(3, col_max*n_bvecs))
+                f_matrix_row = fpo[0].astype(np.intp)
+                f_matrix_col = fpo[1].astype(np.intp)
+                f_matrix_sig = fpo[2]
+                del fpo
                     
                 if np.mod(iteration, check_error_iter):
                     # Calculate the gradient contribution from this voxel:
@@ -955,7 +978,10 @@ class FiberFitMemory(ReconstFit):
         pred_weighted = np.zeros(self.fit_data.shape)
         
         col_max = len(streamline)
-        
+ 
+        if "1" == os.getenv('PARALIFE_DEBUG', 0):
+           print("Start prediction....")       
+           
         for v_idx in range(self.vox_coords.shape[0]):
                 mat_row_idx = (range_bvecs + v_idx * n_bvecs).astype(np.intp)
                 
@@ -979,12 +1005,20 @@ class FiberFitMemory(ReconstFit):
 #                     f_matrix_sig[ii*n_bvecs:ii*n_bvecs+n_bvecs] += vox_fib_sig
 
                 #DFZ: load voxel from pickle
-                with open("/tmp/paralife_vox"+str(v_idx)+".pickle", "rb") as f:
-                    paralife_vox = pickle.load(f)
+#                 with open("/tmp/paralife_vox"+str(v_idx)+".pickle", "rb") as f:
+#                     paralife_vox = pickle.load(f)
+# 
+#                 f_matrix_row = paralife_vox[0]
+#                 f_matrix_col = paralife_vox[1]
+#                 f_matrix_sig = paralife_vox[2]                
 
-                f_matrix_row = paralife_vox[0]
-                f_matrix_col = paralife_vox[1]
-                f_matrix_sig = paralife_vox[2]                
+                #DFZ: or we can load from memmap file
+                fpo = np.memmap('/tmp/paralife.mmap', dtype='float64', mode='r', 
+                                offset=v_idx*3*col_max*n_bvecs*8, shape=(3, col_max*n_bvecs))
+                f_matrix_row = fpo[0].astype(np.intp)
+                f_matrix_col = fpo[1].astype(np.intp)
+                f_matrix_sig = fpo[2]
+                del fpo
  
                 pred_weighted[mat_row_idx] = spdot(f_matrix_row,
                                                    f_matrix_col,

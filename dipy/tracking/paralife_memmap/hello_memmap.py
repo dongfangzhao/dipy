@@ -10,9 +10,10 @@ import os.path as path
 data = np.arange(12, dtype='float32')
 data.resize((3,4))
 filename = path.join(mkdtemp(), 'newfile.dat')
+filename = "/tmp/dfz_memmap.file"
 print('filename =', filename)
 #DFZ: open a memmap file:
-fp = np.memmap(filename, dtype='float32', mode='w+', shape=(3,4))
+fp = np.memmap(filename, dtype='float32', mode='w+', shape=(3,4), offset = 3*4*4*1)
 #DFZ: assign the data
 fp[:] = data[:]
 #DFZ: somehow deletion of file pointer flushes it to the disk...
