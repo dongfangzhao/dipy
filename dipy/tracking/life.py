@@ -323,7 +323,21 @@ def voxel2streamline(streamline, transformed=False, affine=None,
     return _voxel2streamline(transformed_streamline,
                              unique_idx.astype(np.intp))
 
-
+#
+#DFZ: convert an array to a CSV string for Myria import
+#
+def _atoc(array_in):
+    n_row = len(array_in)
+    n_col = len(array_in[0])
+    res = ""
+    for c in range(n_col):
+        for r in range(n_row):
+            res += str(array_in[r][c]) 
+            if r < n_row-1:
+                res += ","
+        if c < n_col-1:
+            res += "\n"
+    return res
 
 class FiberModel(ReconstModel):
     """Representing and solving models based on tractography solutions.
@@ -484,7 +498,23 @@ class FiberModel(ReconstModel):
                 para_start += n_bvecs
                 
             paralife_vox = [paralife_row, paralife_col, paralife_sig]
-            
+
+            #DFZ: let's upload it to Myria
+            if "1" == os.getenv('MYRIA_ENABLE', 0):
+                print("DFZ DEBUG:", _atoc(paralife_vox))
+                pl_csv = _atoc(paralife_vox)
+                print("pl_csv =", pl_csv)
+                name = {'userName': 'public', 'programName': 'adhoc', 'relationName': 'vox'+str(v_idx)}
+                schema = { "columnNames" : ["row", "col", "sig"],
+                			   "columnTypes" : ["LONG_TYPE","LONG_TYPE", "DOUBLE_TYPE"] }
+                connection = MyriaConnection(rest_url='http://localhost:8753')
+                result = connection.upload_file(
+                    name, schema, pl_csv, delimiter=',', overwrite=True)
+                relation = MyriaRelation("vox"+str(v_idx), connection=connection)
+                print(relation.to_dict())
+                print(relation.to_dataframe().as_matrix())
+                print("Done")
+
             #DFZ: save the voxel to a file:
 			#DFZ TODO: the pickle will be uploaded to Myria later
 			#DFZ TODO: or maybe there's an easy way to upload a numpy matrix
