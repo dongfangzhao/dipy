@@ -316,21 +316,6 @@ def voxel2streamline(streamline, transformed=False, affine=None,
     return _voxel2streamline(transformed_streamline,
                              unique_idx.astype(np.intp))
 
-#
-#DFZ: convert an array to a CSV string for Myria import
-#
-# def _atoc(array_in):
-#     n_row = len(array_in)
-#     n_col = len(array_in[0])
-#     res = ""
-#     for c in range(n_col):
-#         for r in range(n_row):
-#             res += str(array_in[r][c]) 
-#             if r < n_row-1:
-#                 res += ","
-#         if c < n_col-1:
-#             res += "\n"
-#     return res
 
 class FiberModel(ReconstModel):
     """Representing and solving models based on tractography solutions.
