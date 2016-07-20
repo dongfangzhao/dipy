@@ -9,13 +9,6 @@ and statistical inference in living connectomes. Nature Methods 11:
 1058-1063. doi:10.1038/nmeth.3098
 """
 
-
-from __future__ import print_function
-#import h5py
-import os
-import pickle
-from myria import *
-
 import numpy as np
 import scipy.sparse as sps
 import scipy.linalg as la
@@ -326,18 +319,18 @@ def voxel2streamline(streamline, transformed=False, affine=None,
 #
 #DFZ: convert an array to a CSV string for Myria import
 #
-def _atoc(array_in):
-    n_row = len(array_in)
-    n_col = len(array_in[0])
-    res = ""
-    for c in range(n_col):
-        for r in range(n_row):
-            res += str(array_in[r][c]) 
-            if r < n_row-1:
-                res += ","
-        if c < n_col-1:
-            res += "\n"
-    return res
+# def _atoc(array_in):
+#     n_row = len(array_in)
+#     n_col = len(array_in[0])
+#     res = ""
+#     for c in range(n_col):
+#         for r in range(n_row):
+#             res += str(array_in[r][c]) 
+#             if r < n_row-1:
+#                 res += ","
+#         if c < n_col-1:
+#             res += "\n"
+#     return res
 
 class FiberModel(ReconstModel):
     """Representing and solving models based on tractography solutions.
@@ -422,10 +415,9 @@ class FiberModel(ReconstModel):
         return (to_fit, weighted_signal, b0_signal, relative_signal, mean_sig,
                 vox_data)
 
-    #DFZ: serialize voxels into disks
-    def setup_serialize(self, streamline, affine, sphere=None):
+    def setup_mmap(self, streamline, affine, sphere=None):
         """
-        Set up the necessary components for the LiFE model: the matrix of
+        Set up the memory-map file for the LiFE model: the matrix of
         fiber-contributions to the DWI signal, and the coordinates of voxels
         for which the equations will be solved
         Parameters
@@ -459,7 +451,6 @@ class FiberModel(ReconstModel):
         v2f, v2fn = voxel2streamline(streamline, transformed=True,
                                      affine=affine, unique_idx=vox_coords)
         
-#         print ("len(streamline) =", len(streamline))
         col_max = len(streamline)
 
         fiber_signal = []
@@ -475,23 +466,21 @@ class FiberModel(ReconstModel):
         if sphere is not False:
             del SignalMaker
         
-        #DFZ: we need to break the following life_matrix into 4 voxels       
         range_bvecs = np.arange(n_bvecs).astype(int)
         # In each voxel:
         for v_idx in range(vox_coords.shape[0]): 
-            #DFZ: reset the starting index for paralife
             para_start = 0 
             paralife_row = np.zeros(n_bvecs*col_max, dtype=np.intp)
             paralife_col = np.zeros(n_bvecs*col_max, dtype=np.intp)
             paralife_sig = np.zeros(n_bvecs*col_max, dtype=np.float)
                         
-            # For each fiber in that voxel:
+            #each fiber in that voxel:
             for f_idx in v2f[v_idx]:
                 vox_fiber_sig = np.zeros(n_bvecs)
                 for node_idx in v2fn[f_idx][v_idx]:
                     vox_fiber_sig += fiber_signal[f_idx][node_idx]
                 
-                #DFZ: construct the paralife voxel matrix
+                #construct the paralife voxel matrix
                 paralife_row[para_start:para_start+n_bvecs] = range_bvecs
                 paralife_col[para_start:para_start+n_bvecs] = f_idx
                 paralife_sig[para_start:para_start+n_bvecs] = vox_fiber_sig
@@ -499,38 +488,16 @@ class FiberModel(ReconstModel):
                 
             paralife_vox = [paralife_row, paralife_col, paralife_sig]
 
-            #DFZ: let's upload it to Myria
-            if "1" == os.getenv('MYRIA_ENABLE', 0):
-                print("DFZ DEBUG:", _atoc(paralife_vox))
-                pl_csv = _atoc(paralife_vox)
-                print("pl_csv =", pl_csv)
-                name = {'userName': 'public', 'programName': 'adhoc', 'relationName': 'vox'+str(v_idx)}
-                schema = { "columnNames" : ["row", "col", "sig"],
-                			   "columnTypes" : ["LONG_TYPE","LONG_TYPE", "DOUBLE_TYPE"] }
-                connection = MyriaConnection(rest_url='http://localhost:8753')
-                result = connection.upload_file(
-                    name, schema, pl_csv, delimiter=',', overwrite=True)
-                relation = MyriaRelation("vox"+str(v_idx), connection=connection)
-                print(relation.to_dict())
-                print(relation.to_dataframe().as_matrix())
-                print("Done")
-
-            #DFZ: save the voxel to a file:
-			#DFZ TODO: the pickle will be uploaded to Myria later
-			#DFZ TODO: or maybe there's an easy way to upload a numpy matrix
-#             with open('/tmp/paralife_vox'+str(v_idx)+'.pickle', 'wb') as f:
-#                 pickle.dump(paralife_vox, f)
-                
-            #DFZ: or if we want save it to memmap:
+            #save it to memmap:
             if 0 == v_idx:
                 mmap_mode = 'w+'
             else:
                 mmap_mode = 'r+'
             fp = np.memmap('/tmp/paralife.mmap', dtype='float64', 
                            mode=mmap_mode, shape=(3,n_bvecs*col_max), 
-                           offset = v_idx*3*n_bvecs*col_max*8) #DFZ: float64 = 8 bytes
+                           offset = v_idx*3*n_bvecs*col_max*8)
             fp[:] = paralife_vox[:]
-            fp.flush() #DFZ: explicitly flush the memory
+            fp.flush() #explicitly flush the memory
             del fp            
         
         return
@@ -620,12 +587,6 @@ class FiberModel(ReconstModel):
         life_matrix = sps.csr_matrix((f_matrix_sig,
                                      [f_matrix_row, f_matrix_col]))
 
-        #print("DFZ DEBUG: writing life_matrix to disk...")
-#         file = h5py.File('/tmp/life_matrix.h5', 'w')
-#         tmp_data = life_matrix.toarray() #fill out the sparse matrix
-#         file.create_dataset("life_matrix", data=tmp_data)
-#         file.close()
-        
         return life_matrix, vox_coords
 
 
@@ -767,54 +728,7 @@ class FiberModel(ReconstModel):
             for v_idx in range(vox_coords.shape[0]):
                 mat_row_idx = range_bvecs + v_idx * n_bvecs
                 
-                #DFZ: uncomment the following to compute the voxel on the fly 
-#                 f_matrix_row = np.zeros(len(s_in_vox[v_idx] * n_bvecs),
-#                                         dtype=np.intp)
-#                 f_matrix_col = np.zeros(len(s_in_vox[v_idx] * n_bvecs),
-#                                         dtype=np.intp)
-#                 f_matrix_sig = np.zeros(len(s_in_vox[v_idx] * n_bvecs),
-#                                         dtype=float)
-#                 for ii, (sl_idx, nodes_in_vox) in enumerate(s_in_vox[v_idx]):
-#                     f_matrix_row[ii*n_bvecs:ii*n_bvecs+n_bvecs] = range_bvecs
-#                     f_matrix_col[ii*n_bvecs:ii*n_bvecs+n_bvecs] = sl_idx
-#                     vox_fib_sig = np.zeros(n_bvecs)
-#                     for node_idx in nodes_in_vox:
-#                         signal_idx = closest[sl_idx][node_idx]
-#                         this_signal = signal_maker[signal_idx]
-#                         # Sum the signal from each node of the fiber in that
-#                         # voxel:
-#                         vox_fib_sig += this_signal
-#                     # And add the summed thing into the corresponding rows:
-#                     f_matrix_sig[ii*n_bvecs:ii*n_bvecs+n_bvecs] += vox_fib_sig
-                    
-                #DFZ: load from HDF5:
-#                 print("DFZ DEBUG: loading from HDF5...")
-#                 file = h5py.File('/tmp/life_matrix.h5', 'r')
-#                 vox_matrix = file['/life_matrix'][v_idx*n_bvecs : (v_idx+1)*n_bvecs][:]
-#                 vox_row = []
-#                 vox_col = []
-#                 vox_sig = []                
-#                 for i in range(vox_matrix.shape[0]):
-#                     for j in range(vox_matrix.shape[1]):
-#                         val = vox_matrix[i][j]
-#                         if abs(val) > 0.000005: #non zeros
-#                             vox_row.append(i)
-#                             vox_col.append(j)
-#                             vox_sig.append(val)
-#                 file.close()  
-#                 f_matrix_row = np.array(vox_row)
-#                 f_matrix_col = np.array(vox_col)
-#                 f_matrix_sig = np.array(vox_sig)
-                
-                #DFZ: loading from pickle
-#                 with open("/tmp/paralife_vox"+str(v_idx)+".pickle", "rb") as f:
-#                     paralife_vox = pickle.load(f)
-#                     
-#                 f_matrix_row = paralife_vox[0]
-#                 f_matrix_col = paralife_vox[1]
-#                 f_matrix_sig = paralife_vox[2]
-                    
-                #DFZ: or we can load from memmap file
+                #load from memmap file
                 fpo = np.memmap('/tmp/paralife.mmap', dtype='float64', mode='r', 
                                 offset=v_idx*3*col_max*n_bvecs*8, shape=(3, col_max*n_bvecs))
                 f_matrix_row = fpo[0].astype(np.intp)
@@ -863,8 +777,6 @@ class FiberModel(ReconstModel):
                 else:
                     count_bad += 1
                 if count_bad >= max_error_checks:
-                    if "1" == os.getenv('PARALIFE_DEBUG', 0):
-                        print("Model converged at step #", iteration)
                     return FiberFitMemory(self,
                                           vox_coords,
                                           data,
@@ -876,8 +788,8 @@ class FiberModel(ReconstModel):
 
                 error_checks += 1
             iteration += 1
-            if ("1" == os.getenv('PARALIFE_DEBUG', 0)) and (0 == iteration % 100):
-                print("Converging at step #", iteration)
+                
+                
 class FiberFitSpeed(ReconstFit):
     """
     A fit of the LiFE model to diffusion data
@@ -1010,41 +922,11 @@ class FiberFitMemory(ReconstFit):
         pred_weighted = np.zeros(self.fit_data.shape)
         
         col_max = len(streamline)
- 
-        if "1" == os.getenv('PARALIFE_DEBUG', 0):
-           print("Start prediction....")       
            
         for v_idx in range(self.vox_coords.shape[0]):
                 mat_row_idx = (range_bvecs + v_idx * n_bvecs).astype(np.intp)
-                
-                #DFZ: calculate voxel on the fly
-#                 s_in_vox = self.s_in_vox[v_idx]
-#                 f_matrix_row = np.zeros(len(s_in_vox) * n_bvecs, dtype=np.intp)
-#                 f_matrix_col = np.zeros(len(s_in_vox) * n_bvecs, dtype=np.intp)
-#                 f_matrix_sig = np.zeros(len(s_in_vox) * n_bvecs, dtype=float)
-#                 for ii, (sl_idx, nodes_in_vox) in enumerate(s_in_vox):
-#                     ss = streamline[sl_idx]
-#                     f_matrix_row[ii*n_bvecs:ii*n_bvecs+n_bvecs] = range_bvecs
-#                     f_matrix_col[ii*n_bvecs:ii*n_bvecs+n_bvecs] = sl_idx
-#                     vox_fib_sig = np.zeros(n_bvecs)
-#                     for node_idx in nodes_in_vox:
-#                         signal_idx = self.closest[sl_idx][node_idx]
-#                         this_signal = signal_maker[signal_idx]
-#                         # Sum the signal from each node of the fiber in that
-#                         # voxel:
-#                         vox_fib_sig += this_signal
-#                     # And add the summed thing into the corresponding rows:
-#                     f_matrix_sig[ii*n_bvecs:ii*n_bvecs+n_bvecs] += vox_fib_sig
 
-                #DFZ: load voxel from pickle
-#                 with open("/tmp/paralife_vox"+str(v_idx)+".pickle", "rb") as f:
-#                     paralife_vox = pickle.load(f)
-# 
-#                 f_matrix_row = paralife_vox[0]
-#                 f_matrix_col = paralife_vox[1]
-#                 f_matrix_sig = paralife_vox[2]                
-
-                #DFZ: or we can load from memmap file
+                #load from memmap file
                 fpo = np.memmap('/tmp/paralife.mmap', dtype='float64', mode='r', 
                                 offset=v_idx*3*col_max*n_bvecs*8, shape=(3, col_max*n_bvecs))
                 f_matrix_row = fpo[0].astype(np.intp)

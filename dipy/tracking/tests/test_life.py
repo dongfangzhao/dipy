@@ -154,7 +154,7 @@ def test_Paralife():
 
     #DFZ: memory fit!
     FMM = life.FiberModel(gtab, conserve_memory=True)
-    FMM.setup_serialize(streamline, None)
+    FMM.setup_mmap(streamline, None)
     fitm = FMM.fit(this_data, streamline)
     
     #DFZ: check memory-fit results
