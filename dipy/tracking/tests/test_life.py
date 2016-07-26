@@ -253,6 +253,8 @@ def test_fit_data():
     # And a moderate correlation with the Matlab implementation weights:
     npt.assert_(np.corrcoef(matlab_weights, life_fit.beta)[0, 1] > 0.6)
     life_model_memory = life.FiberModel(gtab, conserve_memory=True)
+    # Setup the mmap file
+    life_model_memory.setup_mmap(tensor_streamlines, None)
     life_fit_memory = life_model_memory.fit(data, tensor_streamlines)
     npt.assert_almost_equal(life_fit_memory.beta, life_fit.beta, decimal=1)
     p_model_mem = life_fit_memory.predict(tensor_streamlines)
