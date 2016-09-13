@@ -23,7 +23,7 @@ from dipy.tracking.spdot import spdot, spdot_t, gradient_change
 import dipy.core.optimize as opt
 
 #DFZ: modify the partition's size; # voxels per partition
-sz_partition = 1
+sz_partition = 2
 
 def gradient(f):
     """
@@ -676,7 +676,7 @@ class FiberModel(ReconstModel):
                     g = ss[node_idx] - ss[node_idx-1]
                 closest[sl_idx].append(sphere.find_closest(g))
         # We only consider the diffusion-weighted signals in fitting:
-        n_bvecs = self.gtab.bvals[~self.gtab.b0s_mask].shape[0]
+        n_bvecs = self.gtab.bvals[~self.gtab.b0s_mask].shape[0] * sz_partition
         
         range_bvecs = np.arange(n_bvecs).astype(np.intp)
 
@@ -707,20 +707,27 @@ class FiberModel(ReconstModel):
 
         col_max = len(streamline)
 
-        beta = np.zeros(len(streamline)*sz_partition)
+        beta = np.zeros(len(streamline))
         delta = np.zeros(beta.shape)
 
         # We no longer need these variables:
         del v2f, streamline, sl_as_coords
-        
+        count_bad = 0
         while 1:
-            for v_idx in range(vox_coords.shape[0]):
-                mat_row_idx = range_bvecs + v_idx * n_bvecs * sz_partition
+            r_idx = vox_coords.shape[0]
+            for v_idx in range(r_idx / sz_partition):
+                mat_row_idx = range_bvecs + v_idx * n_bvecs
+#  
+#                 print "DFZ DEBUG: fitting..."
+#                 print "DFZ DEBUG: mat_row_idx.shape =", mat_row_idx.shape
+#                 print "DFZ DEBUG: range_bvecs =", range_bvecs
+#                 print "DFZ DEBUG: v_idx =", v_idx
+#                 print "DFZ DEBUG: n_bvecs =", n_bvecs
                 
                 #load from memmap file
                 fpo = np.memmap('/tmp/paralife.mmap', dtype='float64', mode='r', 
-                                offset=v_idx*3*col_max*n_bvecs*8*sz_partition, 
-                                shape=(3, col_max*n_bvecs*sz_partition))
+                                offset=v_idx*3*col_max*n_bvecs*8, 
+                                shape=(3, col_max*n_bvecs))
                 f_matrix_row = fpo[0].astype(np.intp)
                 f_matrix_col = fpo[1].astype(np.intp)
                 f_matrix_sig = fpo[2]
@@ -728,6 +735,8 @@ class FiberModel(ReconstModel):
                     
                 if np.mod(iteration, check_error_iter):
                     # Calculate the gradient contribution from this voxel:
+                    print "DFZ DEBUG: delta.shape[0] =", delta.shape[0]
+                    print "DFZ DEBUG: beta.size =", beta.size
                     XtXby = gradient_change(f_matrix_row,
                                             f_matrix_col,
                                             f_matrix_sig,
@@ -739,6 +748,8 @@ class FiberModel(ReconstModel):
                 else:
                     # This time around, we're just calculating the current
                     # prediction for the signal:
+                    print "DFZ DEBUG: delta.shape[0] =", delta.shape[0]
+                    print "DFZ DEBUG: beta.size =", beta.size
                     y_hat[mat_row_idx] = spdot(f_matrix_row,
                                                f_matrix_col,
                                                f_matrix_sig,
@@ -906,30 +917,37 @@ class FiberFitMemory(ReconstFit):
 
         signal_maker = self.model._signal_maker(sphere=sphere)
 
-        n_bvecs = gtab.bvals[~gtab.b0s_mask].shape[0]
+        n_bvecs = gtab.bvals[~gtab.b0s_mask].shape[0] * sz_partition
         f_matrix_shape = (self.fit_data.shape[0], len(streamline))
         range_bvecs = np.arange(n_bvecs).astype(int)
         pred_weighted = np.zeros(self.fit_data.shape)
         
         col_max = len(streamline)
-           
-        for v_idx in range(self.vox_coords.shape[0]):
-                mat_row_idx = (range_bvecs + v_idx * n_bvecs).astype(np.intp)
-
-                #load from memmap file
-                fpo = np.memmap('/tmp/paralife.mmap', dtype='float64', mode='r', 
-                                offset=v_idx*3*col_max*n_bvecs*8, shape=(3, col_max*n_bvecs))
-                f_matrix_row = fpo[0].astype(np.intp)
-                f_matrix_col = fpo[1].astype(np.intp)
-                f_matrix_sig = fpo[2]
-                del fpo
- 
-                pred_weighted[mat_row_idx] = spdot(f_matrix_row,
-                                                   f_matrix_col,
-                                                   f_matrix_sig,
-                                                   self.beta,
-                                                   f_matrix_row.shape[0],
-                                                   mat_row_idx.shape[0])
+        
+        r_idx = vox_coords.shape[0]
+        
+        for v_idx in range(r_idx / sz_partition):           
+            mat_row_idx = (range_bvecs + v_idx * n_bvecs).astype(np.intp)
+            
+            print "DFZ DEBUG: mat_row_idx.shape =", mat_row_idx.shape
+            print "DFZ DEBUG: range_bvecs =", range_bvecs
+            print "DFZ DEBUG: v_idx =", v_idx
+            print "DFZ DEBUG: n_bvecs =", n_bvecs
+            
+            #load from memmap file
+            fpo = np.memmap('/tmp/paralife.mmap', dtype='float64', mode='r', 
+                            offset=v_idx*3*col_max*n_bvecs*8, shape=(3, col_max*n_bvecs))
+            f_matrix_row = fpo[0].astype(np.intp)
+            f_matrix_col = fpo[1].astype(np.intp)
+            f_matrix_sig = fpo[2]
+            del fpo
+            
+            pred_weighted[mat_row_idx] = spdot(f_matrix_row,
+                                               f_matrix_col,
+                                               f_matrix_sig,
+                                               self.beta,
+                                               f_matrix_row.shape[0],
+                                               mat_row_idx.shape[0])
 
         pred = np.empty((self.vox_coords.shape[0], gtab.bvals.shape[0]))
         pred[..., ~gtab.b0s_mask] = pred_weighted.reshape(
