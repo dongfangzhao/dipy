@@ -713,9 +713,14 @@ class FiberModel(ReconstModel):
         # We no longer need these variables:
         del v2f, streamline, sl_as_coords
         count_bad = 0
+        out_iter = 0
         while 1:
+            out_iter += 1
             r_idx = vox_coords.shape[0]
             for v_idx in range(r_idx / sz_partition):
+                
+#                 print "DFZ DEBUG: out_iter =", out_iter, "v_idx =", v_idx, "========"
+                
                 mat_row_idx = range_bvecs + v_idx * n_bvecs
 #  
 #                 print "DFZ DEBUG: fitting..."
@@ -727,16 +732,42 @@ class FiberModel(ReconstModel):
                 #load from memmap file
                 fpo = np.memmap('/tmp/paralife.mmap', dtype='float64', mode='r', 
                                 offset=v_idx*3*col_max*n_bvecs*8, 
-                                shape=(3, col_max*n_bvecs))
-                f_matrix_row = fpo[0].astype(np.intp)
-                f_matrix_col = fpo[1].astype(np.intp)
-                f_matrix_sig = fpo[2]
+                                shape=(sz_partition, 3, col_max*n_bvecs/sz_partition))
+                
+                f_matrix_row = np.ones(n_bvecs*col_max).astype(np.intp)
+                f_matrix_col = np.ones(n_bvecs*col_max).astype(np.intp)
+                f_matrix_sig = np.ones(n_bvecs*col_max)
+                
+#                 print "fpo[0,0] = ", fpo[0,0]
+#                 print "fpo[1,0] = ", fpo[1,0]
+                
+                stripe = n_bvecs*col_max/sz_partition
+                for cnt in range(sz_partition):
+                    f_matrix_row[cnt*stripe:(cnt+1)*stripe] =\
+                            (cnt*n_bvecs/sz_partition+fpo[cnt,0]).astype(np.intp)
+                    f_matrix_col[cnt*stripe:(cnt+1)*stripe] = fpo[cnt,1].astype(np.intp)
+                    f_matrix_sig[cnt*stripe:(cnt+1)*stripe] = fpo[cnt,2]
+                
+#                 f_matrix_row[0:n_bvecs*col_max/sz_partition] = fpo[0,0].astype(np.intp)
+#                 f_matrix_col[0:n_bvecs*col_max/sz_partition] = fpo[0,1].astype(np.intp)
+#                 f_matrix_sig[0:n_bvecs*col_max/sz_partition] = fpo[0,2]
+#                 
+#                 f_matrix_row[n_bvecs*col_max/sz_partition:n_bvecs*col_max] = \
+#                         (n_bvecs/sz_partition+fpo[1,0]).astype(np.intp)
+#                 f_matrix_col[n_bvecs*col_max/sz_partition:n_bvecs*col_max] = fpo[1,1].astype(np.intp)
+#                 f_matrix_sig[n_bvecs*col_max/sz_partition:n_bvecs*col_max] = fpo[1,2]                
                 del fpo
                     
                 if np.mod(iteration, check_error_iter):
                     # Calculate the gradient contribution from this voxel:
-                    print "DFZ DEBUG: delta.shape[0] =", delta.shape[0]
-                    print "DFZ DEBUG: beta.size =", beta.size
+#                     print "DFZ DEBUG: f_matrix_row =", f_matrix_row
+#                     print "DFZ DEBUG: f_matrix_col =", f_matrix_col
+#                     print "DFZ DEBUG: f_matrix_sig =", f_matrix_sig
+#                     print "DFZ DEBUG: beta.size =", beta.size
+#                     print "DFZ DEBUG: to_fit[mat_row_idx].size =", to_fit[mat_row_idx].size
+#                     print "DFZ DEBUG: mat_row_idx.shape[0] =", mat_row_idx.shape[0]
+#                     print "DFZ DEBUG: delta.shape[0] =", delta.shape[0]
+                    
                     XtXby = gradient_change(f_matrix_row,
                                             f_matrix_col,
                                             f_matrix_sig,
@@ -746,16 +777,25 @@ class FiberModel(ReconstModel):
                                             delta.shape[0])
                     delta = delta + XtXby
                 else:
+#                     print "DFZ DEBUG: f_matrix_row =", f_matrix_row
+#                     print "DFZ DEBUG: f_matrix_col =", f_matrix_col
+#                     print "DFZ DEBUG: f_matrix_sig =", f_matrix_sig
+#                     print "DFZ DEBUG: beta.size =", beta.size
+#                     print "DFZ DEBUG: f_matrix_row.shape[0] =", f_matrix_row.shape[0]                    
+#                     print "DFZ DEBUG: mat_row_idx.shape[0] =", mat_row_idx.shape[0]
                     # This time around, we're just calculating the current
                     # prediction for the signal:
-                    print "DFZ DEBUG: delta.shape[0] =", delta.shape[0]
-                    print "DFZ DEBUG: beta.size =", beta.size
+#                     print "DFZ DEBUG: delta.shape[0] =", delta.shape[0]
+#                     print "DFZ DEBUG: beta.size =", beta.size
                     y_hat[mat_row_idx] = spdot(f_matrix_row,
                                                f_matrix_col,
                                                f_matrix_sig,
                                                beta,
                                                f_matrix_row.shape[0],
                                                mat_row_idx.shape[0])
+
+#             if out_iter > 1:
+#                 exit(0)
 
             if np.mod(iteration, check_error_iter):
                 beta = beta - step_size * delta
@@ -924,22 +964,38 @@ class FiberFitMemory(ReconstFit):
         
         col_max = len(streamline)
         
-        r_idx = vox_coords.shape[0]
+        r_idx = self.vox_coords.shape[0]
         
         for v_idx in range(r_idx / sz_partition):           
             mat_row_idx = (range_bvecs + v_idx * n_bvecs).astype(np.intp)
             
-            print "DFZ DEBUG: mat_row_idx.shape =", mat_row_idx.shape
-            print "DFZ DEBUG: range_bvecs =", range_bvecs
-            print "DFZ DEBUG: v_idx =", v_idx
-            print "DFZ DEBUG: n_bvecs =", n_bvecs
+#             print "DFZ DEBUG: mat_row_idx.shape =", mat_row_idx.shape
+#             print "DFZ DEBUG: range_bvecs =", range_bvecs
+#             print "DFZ DEBUG: v_idx =", v_idx
+#             print "DFZ DEBUG: n_bvecs =", n_bvecs
             
             #load from memmap file
             fpo = np.memmap('/tmp/paralife.mmap', dtype='float64', mode='r', 
-                            offset=v_idx*3*col_max*n_bvecs*8, shape=(3, col_max*n_bvecs))
-            f_matrix_row = fpo[0].astype(np.intp)
-            f_matrix_col = fpo[1].astype(np.intp)
-            f_matrix_sig = fpo[2]
+                            offset=v_idx*3*col_max*n_bvecs*8, 
+                            shape=(sz_partition, 3, col_max*n_bvecs/sz_partition))
+            
+            f_matrix_row = np.ones(n_bvecs*col_max).astype(np.intp)
+            f_matrix_col = np.ones(n_bvecs*col_max).astype(np.intp)
+            f_matrix_sig = np.ones(n_bvecs*col_max)
+            
+#                 print "fpo[0,0] = ", fpo[0,0]
+#                 print "fpo[1,0] = ", fpo[1,0]
+            
+            stripe = n_bvecs*col_max/sz_partition
+            for cnt in range(sz_partition):
+                f_matrix_row[cnt*stripe:(cnt+1)*stripe] =\
+                        (cnt*n_bvecs/sz_partition+fpo[cnt,0]).astype(np.intp)
+                f_matrix_col[cnt*stripe:(cnt+1)*stripe] = fpo[cnt,1].astype(np.intp)
+                f_matrix_sig[cnt*stripe:(cnt+1)*stripe] = fpo[cnt,2]            
+            
+#             f_matrix_row = fpo[0].astype(np.intp)
+#             f_matrix_col = fpo[1].astype(np.intp)
+#             f_matrix_sig = fpo[2]
             del fpo
             
             pred_weighted[mat_row_idx] = spdot(f_matrix_row,
