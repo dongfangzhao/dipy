@@ -22,6 +22,8 @@ from dipy.tracking.vox2track import streamline_mapping, _voxel2streamline
 from dipy.tracking.spdot import spdot, spdot_t, gradient_change
 import dipy.core.optimize as opt
 
+#DFZ: modify the partition's size; # voxels per partition
+sz_partition = 1
 
 def gradient(f):
     """
@@ -675,7 +677,7 @@ class FiberModel(ReconstModel):
                 closest[sl_idx].append(sphere.find_closest(g))
         # We only consider the diffusion-weighted signals in fitting:
         n_bvecs = self.gtab.bvals[~self.gtab.b0s_mask].shape[0]
-        beta = np.zeros(len(streamline))
+        
         range_bvecs = np.arange(n_bvecs).astype(np.intp)
 
         # Optimization-related stuff:
@@ -705,17 +707,20 @@ class FiberModel(ReconstModel):
 
         col_max = len(streamline)
 
+        beta = np.zeros(len(streamline)*sz_partition)
+        delta = np.zeros(beta.shape)
+
         # We no longer need these variables:
         del v2f, streamline, sl_as_coords
-
-        delta = np.zeros(beta.shape)
+        
         while 1:
             for v_idx in range(vox_coords.shape[0]):
-                mat_row_idx = range_bvecs + v_idx * n_bvecs
+                mat_row_idx = range_bvecs + v_idx * n_bvecs * sz_partition
                 
                 #load from memmap file
                 fpo = np.memmap('/tmp/paralife.mmap', dtype='float64', mode='r', 
-                                offset=v_idx*3*col_max*n_bvecs*8, shape=(3, col_max*n_bvecs))
+                                offset=v_idx*3*col_max*n_bvecs*8*sz_partition, 
+                                shape=(3, col_max*n_bvecs*sz_partition))
                 f_matrix_row = fpo[0].astype(np.intp)
                 f_matrix_col = fpo[1].astype(np.intp)
                 f_matrix_sig = fpo[2]
