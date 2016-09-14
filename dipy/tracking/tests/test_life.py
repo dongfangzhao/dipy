@@ -127,6 +127,26 @@ def test_FiberModel_init():
         npt.assert_equal(fiber_matrix.shape, (len(vox_coords) * 64,
                                               len(streamline)))
 
+#TODO: benchmarking chunksize's impact to OOC algorithms
+def test_OOC_chunksize():
+    #load data http://nbviewer.jupyter.org/gist/arokem/bc29f34ebc97510d9def
+    from dipy.data import read_stanford_labels
+    import nibabel as nib
+    hardi_img, gtab, labels_img = read_stanford_labels()
+    data = hardi_img.get_data()
+    #issues:
+    candidate_sl = [s[0] for s in nib.trackvis.read('./probabilistic_small_sphere.trk', 
+                                                    points_space='voxel')[0]]   
+    fiber_model = life.FiberModel(gtab, conserve_memory=True)  
+    
+    print(len(candidate_sl))
+
+    for i in np.arange(1, 8): #1..19
+        this = 2 ** i
+        print("Number of streamlines: %s"%this)
+        fiber_model.setup_mmap(candidate_sl, None)
+        fiber_fit = fiber_model.fit(data, candidate_sl[:this], affine=np.eye(4))
+    
 #DFZ: this only tests with the memory-fit approach, namely paralife
 def test_Paralife():
     data_file, bval_file, bvec_file = dpd.get_data('small_64D')
@@ -259,22 +279,7 @@ def test_fit_data():
     npt.assert_almost_equal(life_fit_memory.beta, life_fit.beta, decimal=1)
     p_model_mem = life_fit_memory.predict(tensor_streamlines)
     npt.assert_(np.corrcoef(p_model, p_model_mem)[0, 1] > 0.9999)
-
-#TODO: benchmarking chunksize's impact to OOC algorithms
-def test_OOC_chunksize():
-    #load data http://nbviewer.jupyter.org/gist/arokem/bc29f34ebc97510d9def
-    from dipy.data import read_stanford_labels
-    import nibabel as nib
-    hardi_img, gtab, labels_img = read_stanford_labels()
-    data = hardi_img.get_data()
-    candidate_sl = [s[0] for s in nib.trackvis.read('./probabilistic_small_sphere.trk', 
-                                                    points_space='voxel')[0]]
-    import dipy.tracking.life as life
-    fiber_model = life.FiberModel(gtab)
-    
-    len(candidate_sl)
-    
-    
+   
 
 if __name__ == "__main__":
     test_Paralife()
