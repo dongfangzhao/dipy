@@ -23,7 +23,7 @@ from dipy.tracking.spdot import spdot, spdot_t, gradient_change
 import dipy.core.optimize as opt
 
 #DFZ: modify the partition's size; # voxels per partition
-sz_partition = 2
+sz_partition = 5
 
 def gradient(f):
     """
@@ -796,7 +796,9 @@ class FiberModel(ReconstModel):
 
 #             if out_iter > 1:
 #                 exit(0)
-
+        
+            print("out_iter = %d, v_idx = %d" % (out_iter, v_idx))  
+            
             if np.mod(iteration, check_error_iter):
                 beta = beta - step_size * delta
                 # Set negative values to 0 (non-negative!)
@@ -829,7 +831,7 @@ class FiberModel(ReconstModel):
 
                 error_checks += 1
             iteration += 1
-                
+      
                 
 class FiberFitSpeed(ReconstFit):
     """

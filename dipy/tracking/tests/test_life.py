@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os
 import os.path as op
+import time
 
 import numpy as np
 import numpy.testing as npt
@@ -137,15 +138,25 @@ def test_OOC_chunksize():
     #issues:
     candidate_sl = [s[0] for s in nib.trackvis.read('./probabilistic_small_sphere.trk', 
                                                     points_space='voxel')[0]]   
+    
     fiber_model = life.FiberModel(gtab, conserve_memory=True)  
     
     print(len(candidate_sl))
 
-    for i in np.arange(1, 8): #1..19
+    for i in np.arange(5, 6): #1..19
         this = 2 ** i
-        print("Number of streamlines: %s"%this)
-        fiber_model.setup_mmap(candidate_sl, None)
+        print("\nNumber of streamlines: %s"%this)
+        
+        tm_start = time.time()
+        fiber_model.setup_mmap(candidate_sl[:this], None)
+        print("Setup time: %.3f" % (time.time() - tm_start))
+        
+#         print("data.shape =", data.shape)
+#         print("candidate_sl[:this][0].shape =", candidate_sl[:this][0].shape)
+        
+        tm_start = time.time()
         fiber_fit = fiber_model.fit(data, candidate_sl[:this], affine=np.eye(4))
+        print("Fitting time: %.3f" % (time.time() - tm_start))
     
 #DFZ: this only tests with the memory-fit approach, namely paralife
 def test_Paralife():
@@ -282,5 +293,5 @@ def test_fit_data():
    
 
 if __name__ == "__main__":
-    test_Paralife()
+#     test_Paralife()
     test_OOC_chunksize()
