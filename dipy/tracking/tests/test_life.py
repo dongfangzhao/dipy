@@ -260,5 +260,22 @@ def test_fit_data():
     p_model_mem = life_fit_memory.predict(tensor_streamlines)
     npt.assert_(np.corrcoef(p_model, p_model_mem)[0, 1] > 0.9999)
 
+#TODO: benchmarking chunksize's impact to OOC algorithms
+def test_OOC_chunksize():
+    #load data http://nbviewer.jupyter.org/gist/arokem/bc29f34ebc97510d9def
+    from dipy.data import read_stanford_labels
+    import nibabel as nib
+    hardi_img, gtab, labels_img = read_stanford_labels()
+    data = hardi_img.get_data()
+    candidate_sl = [s[0] for s in nib.trackvis.read('./probabilistic_small_sphere.trk', 
+                                                    points_space='voxel')[0]]
+    import dipy.tracking.life as life
+    fiber_model = life.FiberModel(gtab)
+    
+    len(candidate_sl)
+    
+    
+
 if __name__ == "__main__":
     test_Paralife()
+    test_OOC_chunksize()
