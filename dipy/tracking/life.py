@@ -23,7 +23,7 @@ from dipy.tracking.spdot import spdot, spdot_t, gradient_change
 import dipy.core.optimize as opt
 
 #DFZ: modify the partition's size; # voxels per partition
-sz_partition = 256
+# sz_partition = 16
 
 def gradient(f):
     """
@@ -614,7 +614,7 @@ class FiberModel(ReconstModel):
 
     def _fit_memory(self, data, streamline, affine=None,
                     sphere=None, check_error_iter=5, converge_on_sse=0.8,
-                    max_error_checks=5, step_size=0.01):
+                    max_error_checks=5, step_size=0.01, sz_partition = 1):
         """
         Fit the LiFE model.
 
@@ -931,7 +931,7 @@ class FiberFitMemory(ReconstFit):
         self.closest = closest
         self.s_in_vox = s_in_vox
 
-    def predict(self, streamline, gtab=None, S0=None, sphere=None):
+    def predict(self, streamline, gtab=None, S0=None, sphere=None, sz_partition = 1):
         """
         Predict the signal
 

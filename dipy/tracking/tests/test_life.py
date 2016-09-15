@@ -129,7 +129,7 @@ def test_FiberModel_init():
                                               len(streamline)))
 
 #TODO: benchmarking chunksize's impact to OOC algorithms
-def test_OOC_chunksize():
+def test_OOC_chunksize(p_size=1):
     #load data http://nbviewer.jupyter.org/gist/arokem/bc29f34ebc97510d9def
     from dipy.data import read_stanford_labels
     import nibabel as nib
@@ -145,7 +145,7 @@ def test_OOC_chunksize():
 
     for i in np.arange(8, 9): #1..19
         this = 2 ** i
-        print("\nNumber of streamlines: %s"%this)
+        print("\nNumber of streamlines: %s, chunk size = %d"%(this,p_size))
         
         tm_start = time.time()
         fiber_model.setup_mmap(candidate_sl[:this], None)
@@ -155,11 +155,11 @@ def test_OOC_chunksize():
 #         print("candidate_sl[:this][0].shape =", candidate_sl[:this][0].shape)
         
         tm_start = time.time()
-        fiber_fit = fiber_model.fit(data, candidate_sl[:this], affine=np.eye(4))
+        fiber_fit = fiber_model.fit(data, candidate_sl[:this], affine=np.eye(4), sz_partition=p_size)
         print("Fitting time: %.3f" % (time.time() - tm_start))
     
 #DFZ: this only tests with the memory-fit approach, namely paralife
-def test_Paralife():
+def test_Paralife(p_size = 1):
     data_file, bval_file, bvec_file = dpd.get_data('small_64D')
     data_ni = nib.load(data_file)
     data = data_ni.get_data()
@@ -186,14 +186,14 @@ def test_Paralife():
     #DFZ: memory fit!
     FMM = life.FiberModel(gtab, conserve_memory=True)
     FMM.setup_mmap(streamline, None)
-    fitm = FMM.fit(this_data, streamline)
+    fitm = FMM.fit(this_data, streamline, sz_partition=p_size)
     
     #DFZ: check memory-fit results
     print("MemoryFit: fitm.beta = ", fitm.beta)
-    npt.assert_almost_equal(fitm.predict(streamline)[1],
+    npt.assert_almost_equal(fitm.predict(streamline, sz_partition=p_size)[1],
                             fitm.data[1], decimal=-1)
     # Predict with an input GradientTable
-    npt.assert_almost_equal(fitm.predict(streamline, gtab)[1],
+    npt.assert_almost_equal(fitm.predict(streamline, gtab, sz_partition=p_size)[1],
                             fitm.data[1], decimal=-1)
     npt.assert_almost_equal(
         this_data[vox_coords[:, 0], vox_coords[:, 1], vox_coords[:, 2]],
@@ -294,4 +294,6 @@ def test_fit_data():
 
 if __name__ == "__main__":
 #     test_Paralife()
-    test_OOC_chunksize()
+    p_sizes = [4, 4, 4]
+    for p_size in p_sizes:
+        test_OOC_chunksize(p_size)
