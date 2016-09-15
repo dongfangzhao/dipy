@@ -143,7 +143,7 @@ def test_OOC_chunksize():
     
     print(len(candidate_sl))
 
-    for i in np.arange(5, 6): #1..19
+    for i in np.arange(8, 9): #1..19
         this = 2 ** i
         print("\nNumber of streamlines: %s"%this)
         

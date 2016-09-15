@@ -23,7 +23,7 @@ from dipy.tracking.spdot import spdot, spdot_t, gradient_change
 import dipy.core.optimize as opt
 
 #DFZ: modify the partition's size; # voxels per partition
-sz_partition = 5
+sz_partition = 256
 
 def gradient(f):
     """
