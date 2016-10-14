@@ -154,6 +154,8 @@ def test_OOC_chunksize(p_size=1):
 #         print("data.shape =", data.shape)
 #         print("candidate_sl[:this][0].shape =", candidate_sl[:this][0].shape)
         
+        #DFZ: from here, intercept Spark
+        
         tm_start = time.time()
         fiber_fit = fiber_model.fit(data, candidate_sl[:this], affine=np.eye(4), sz_partition=p_size)
         print("Fitting time: %.3f" % (time.time() - tm_start))
@@ -294,6 +296,6 @@ def test_fit_data():
 
 if __name__ == "__main__":
 #     test_Paralife()
-    p_sizes = [4, 4, 4]
+    p_sizes = [1]
     for p_size in p_sizes:
         test_OOC_chunksize(p_size)
