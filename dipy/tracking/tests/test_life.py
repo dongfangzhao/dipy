@@ -129,6 +129,7 @@ def test_FiberModel_init():
                                               len(streamline)))
 
 #TODO: benchmarking chunksize's impact to OOC algorithms
+#DFZ: picking up, why do we need both OOC and test_Paralife?
 def test_OOC_chunksize(p_size=1):
     #load data http://nbviewer.jupyter.org/gist/arokem/bc29f34ebc97510d9def
     from dipy.data import read_stanford_labels
