@@ -141,12 +141,11 @@ def test_OOC_chunksize(p_size=1):
                                                     points_space='voxel')[0]]   
     
     print(type(candidate_sl))
+    print(len(candidate_sl))
     exit(0)
     
     fiber_model = life.FiberModel(gtab, conserve_memory=True)  
     
-    print(len(candidate_sl))
-
     for i in np.arange(8, 9): #1..19
         this = 2 ** i
         print("\nNumber of streamlines: %s, chunk size = %d"%(this,p_size))
