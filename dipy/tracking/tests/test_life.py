@@ -147,7 +147,6 @@ def test_OOC_chunksize(p_size=1):
     print(candidate_sl[1])
     print(type(data))
     print(data.shape) 
-    exit(0)
     
     fiber_model = life.FiberModel(gtab, conserve_memory=True)  
     
