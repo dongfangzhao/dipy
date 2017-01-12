@@ -421,6 +421,7 @@ class FiberModel(ReconstModel):
             an approximation. Defaults to use the 362-vertex symmetric sphere
             from :mod:`dipy.data`
         """
+#TODO 1/11: should start splitting on setup.
         if sphere is not False:
             SignalMaker = LifeSignalMaker(self.gtab,
                                           evals=self.evals,
@@ -646,6 +647,10 @@ class FiberModel(ReconstModel):
             In optimization, the size of the gradient step change to the
             parameters to perform in each round.
         """
+#DFZ TODO 1/11/2017
+        print("DFZ DEBUG: so we are to split the fitting procedure. ")
+        exit(0)
+
         if sphere is None:
             sphere = dpd.get_sphere()
 
@@ -676,6 +681,7 @@ class FiberModel(ReconstModel):
                     g = ss[node_idx] - ss[node_idx-1]
                 closest[sl_idx].append(sphere.find_closest(g))
         # We only consider the diffusion-weighted signals in fitting:
+#DFZ: why do we need to multiply the sz_partition? i.e., why not division?
         n_bvecs = self.gtab.bvals[~self.gtab.b0s_mask].shape[0] * sz_partition
         
         range_bvecs = np.arange(n_bvecs).astype(np.intp)
@@ -717,6 +723,7 @@ class FiberModel(ReconstModel):
         while 1:
             out_iter += 1
             r_idx = vox_coords.shape[0]
+
             for v_idx in range(r_idx / sz_partition):
                 
 #                 print "DFZ DEBUG: out_iter =", out_iter, "v_idx =", v_idx, "========"
